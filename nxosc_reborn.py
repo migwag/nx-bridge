@@ -74,7 +74,7 @@ def config_path() -> str:
     return os.path.join(base, APP_NAME, "config.json")
 
 
-DEFAULT_PROFILE_NAME = "SceneRotator (IEM, SPARTA, degrees)"
+DEFAULT_PROFILE_NAME = "SceneRotator (degrees)"
 
 DEFAULT_CONFIG = {
     # The active profile is always built from these three fields; the
