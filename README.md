@@ -10,10 +10,20 @@ and reports which way your head is pointing. This app reads it and sends that
 orientation as OSC, so binaural and immersive tools can follow your head.
 
 It replaces the macOS-only [Nxosc](https://www.audiooo.com/) 1.0.5, which was
-last updated in 2017. The OSC output is identical, so anything already
-listening to Nxosc keeps working. Beyond that it adds Windows support, a
-profile system shared with Supperware's Bridgehead, smoothing, and a settable
-send rate.
+last updated in 2017, and adds Windows support, a profile system, smoothing
+and a settable send rate.
+
+**It follows the Supperware convention, not Nxosc's.** Supperware's
+[Bridgehead](https://supperware.net/headtracker/) is the de facto standard for
+head tracking over OSC, and most plugins are set up with it in mind, so
+NXOSC Reborn adopts it: the same profile format, the same component naming,
+the same directions. A `profiles.txt` written for Bridgehead works here
+unchanged.
+
+The practical difference from Nxosc is small but real. Quaternion components
+are named Supperware's way rather than Nxosc's, and **yaw and pitch run the
+opposite way** (roll is the same). If you have a setup built around Nxosc, see
+[Coming from Nxosc](#coming-from-nxosc) below.
 
 Unofficial and not affiliated with Waves Audio. The tracker's protocol is
 closed; it was reverse engineered for interoperability and is documented in
@@ -84,9 +94,8 @@ one universal setting. Several are included:
 Pick one from the menu, or edit the address, parameters and destination
 directly.
 
-The format is Supperware's, so a `profiles.txt` written for
-[Bridgehead](https://supperware.net/headtracker/) works here unchanged, and
-vice versa. **The syntax is documented at
+The format is Supperware's, so a `profiles.txt` moves between the two
+applications unchanged. **The syntax is documented at
 [supperware.net/headtracker/profile-txt](https://supperware.net/headtracker/profile-txt/)**
 — addresses, parameters, scaling suffixes, sign and rotation modifiers, and
 destinations.
@@ -122,6 +131,25 @@ them, and save it as a profile for that plugin.
 
 **The receiver stutters.** Lower the send rate. 25 Hz, even 10 Hz, is plenty
 for head tracking.
+
+---
+
+## Coming from Nxosc
+
+NXOSC Reborn follows Supperware's convention, so its output is not identical
+to Nxosc 1.0.5. Two things differ:
+
+- **Quaternion components** use Supperware's naming. The included
+  **Nxosc 1.0.5 quaternion (legacy)** profile reproduces the original
+  component order exactly, if something downstream depends on it.
+- **Yaw and pitch run the opposite way.** Put a `-` in front of either
+  parameter to get Nxosc's direction back, for instance
+  `-yaw,-pitch,roll`.
+
+The command-line version, `nx_bridge.py`, is unchanged and still produces
+Nxosc 1.0.5's exact output — the same five messages, the same values. That
+output is checked on every build against 3628 frames recorded from the
+original app, and matches to within 8e-6 degrees.
 
 ---
 

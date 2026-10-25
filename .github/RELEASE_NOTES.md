@@ -1,6 +1,12 @@
 Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS and
 Windows.
 
+Follows the Supperware/Bridgehead convention, which is the de facto standard
+for head tracking over OSC, so a `profiles.txt` moves between the two
+applications unchanged. Coming from Nxosc 1.0.5, note that yaw and pitch run
+the opposite way and quaternion components are named Supperware's way — the
+README explains how to get the old behaviour back.
+
 ### Download
 
 - **macOS** — `NXOSC-Reborn-macOS.zip`
@@ -19,5 +25,5 @@ may warn on first run: More info → Run anyway.
 ### This is a beta
 
 It works, and the protocol decode is verified automatically on every build
-against 3628 frames recorded from the original app. But it has been tested by
+against 3628 frames recorded from the original Nxosc. But it has been tested by
 very few people, on few setups. Please report what breaks.
