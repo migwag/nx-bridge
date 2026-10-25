@@ -63,7 +63,7 @@ local 8585
 # conventions, so keep one profile per plugin rather than hunting for a
 # single "correct" one. osc_sweep.py identifies a new plugin's convention.
 APL Virtuoso
-/quaternion
+/Virtuoso/quat
 qw,qy,-qx,qz
 local 8000
 
