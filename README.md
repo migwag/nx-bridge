@@ -71,6 +71,18 @@ mistakes are reported in the panel rather than silently ignored.
 
 Settings are remembered between runs.
 
+### Menu bar (macOS)
+
+The app puts an icon in the menu bar. Closing the window leaves it running
+there, still streaming, and the Dock icon disappears -- so it behaves like
+the background utility it is rather than something you have to keep on screen.
+
+The menu shows the current state and offers **Show Window**, **Reset Center**
+and **Quit**. Reopening the window brings the Dock icon back.
+
+Quitting is the only thing that stops it. On Windows and Linux there is no
+menu bar extra, and closing the window quits, as those platforms expect.
+
 ### Command line
 
 ```

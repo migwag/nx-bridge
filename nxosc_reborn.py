@@ -33,6 +33,7 @@ except ImportError:
 from bleak import BleakClient, BleakScanner
 from pythonosc.udp_client import SimpleUDPClient
 
+import macos_menubar as MB
 import nx_profile as NP
 import nx_protocol as P
 
@@ -365,18 +366,69 @@ class App(ttk.Frame):
         self._rate = 0.0
         self._dest_summary = ""
         self._stream_start = time.monotonic()
+        self._menubar_text = ""
 
         root.title(APP_TITLE)
         root.resizable(False, False)
         self.grid(sticky="nsew")
 
         self._build()
+        self._build_menubar()
         # Activate the stored profile so the worker can send from the first
         # packet, without waiting for the user to visit the OSC tab.
         self._on_apply()
         self._note("not connected")
+        self._menubar_status("Not connected")
         self._tick()
         root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # -- menu bar (macOS) ------------------------------------------------
+    def _build_menubar(self):
+        """A status bar extra, so the app can run with no window.
+
+        Only on macOS; elsewhere closing the window still quits, which is
+        what those platforms expect.
+        """
+        self.menubar = None
+        if not MB.available():
+            return
+        bar = MB.MenuBar(
+            title="Nx",
+            icon_path=resource_path("icon_256.png"),
+            tooltip=APP_TITLE,
+            items=[
+                ("Not connected", self.show_window),   # 0: doubles as status
+                None,
+                ("Show Window", self.show_window),
+                ("Reset Center", self._on_recenter),
+                None,
+                ("Quit " + APP_TITLE, self.quit_app),
+            ])
+        self.menubar = bar if bar.ok else None
+
+    def show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        if self.menubar:
+            self.menubar.set_dock_visible(True)
+        try:
+            self.root.focus_force()
+        except Exception:
+            pass
+
+    def hide_window(self):
+        """Closing the window leaves the app running in the menu bar."""
+        save_config(self.cfg)
+        self.root.withdraw()
+        if self.menubar:
+            self.menubar.set_dock_visible(False)
+
+    def quit_app(self):
+        save_config(self.cfg)
+        if self.menubar:
+            self.menubar.remove()
+        self.worker.shutdown()
+        self.root.destroy()
 
     # -- construction ---------------------------------------------------
     def _build(self):
@@ -700,6 +752,12 @@ class App(ttk.Frame):
     def _note(self, text):
         self.status.configure(text=text)
 
+    def _menubar_status(self, text):
+        """The first menu item doubles as a status line, so keep it short."""
+        if getattr(self, "menubar", None) and text != self._menubar_text:
+            self._menubar_text = text
+            self.menubar.set_item_title(0, text)
+
     def _clear_readouts(self):
         for var in self.readouts.values():
             var.set("--")
@@ -750,6 +808,7 @@ class App(ttk.Frame):
             self._note(f"streaming   {self._rate:.1f} Hz{out}   "
                        f"frames {self.worker.frames}   "
                        f"OSC -> {self._dest_summary}")
+            self._menubar_status(f"Streaming {self._rate:.0f} Hz")
 
     def _handle(self, kind, payload):
         if kind == "scanning":
@@ -786,6 +845,7 @@ class App(ttk.Frame):
             battery = payload.get("battery")
             self.battery_var.set(f"{battery} %" if battery is not None else "No Data")
             self._note("connected")
+            self._menubar_status("Connected")
         elif kind in ("disconnected", "dropped"):
             self._set_busy(False)
             self.connected = False
@@ -793,6 +853,8 @@ class App(ttk.Frame):
             self.recenter_button.configure(state="disabled")
             self._clear_readouts()
             self._note("connection lost" if kind == "dropped" else "not connected")
+            self._menubar_status("Connection lost" if kind == "dropped"
+                                 else "Not connected")
         elif kind == "recentered":
             self._note("reset center sent")
         elif kind == "error":
@@ -800,9 +862,10 @@ class App(ttk.Frame):
             self._note(str(payload))
 
     def _on_close(self):
-        save_config(self.cfg)
-        self.worker.shutdown()
-        self.root.destroy()
+        if self.menubar:
+            self.hide_window()
+        else:
+            self.quit_app()
 
 
 def main():

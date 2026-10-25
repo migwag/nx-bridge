@@ -22,6 +22,8 @@ if sys.platform == "darwin":
         "CoreBluetooth",
         "libdispatch",
         "objc",
+        "AppKit",        # menu bar extra
+        "Foundation",
     ]
 elif sys.platform == "win32":
     hidden += collect_submodules("winrt")

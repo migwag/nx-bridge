@@ -53,6 +53,7 @@ math.** CI runs it on macOS and Windows for every push.
 | `icon.png` | icon source art; `make_icons.sh` converts it |
 | `make_icons.sh` | generates the `.icns`, `.ico` and window icon |
 | `make_bundle.sh` | macOS Bluetooth wrapper for running from source |
+| `macos_menubar.py` | the menu bar extra; a no-op off macOS |
 | `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for that wrapper |
 
 `gatt.py` and `capture.py` take a tracker address from `$NX_ADDR`.
@@ -142,6 +143,24 @@ through `set_output()`.
 These are app settings rather than profile fields: Bridgehead's format has no
 place for them, and inventing one would mean our profiles.txt no longer loaded
 in Bridgehead.
+
+## The menu bar extra
+
+`macos_menubar.py` wraps an `NSStatusItem` through pyobjc, which bleak
+already depends on for CoreBluetooth, so it costs no new dependency. Tk's
+event loop on macOS is Cocoa-based and pumps `NSApplication`, which is why a
+status item created from Python receives its clicks without a second run
+loop.
+
+Hiding the Dock icon is `setActivationPolicy_`: `Accessory` drops the Dock
+tile and the application menu, `Regular` restores them. The window's close
+button withdraws the window and switches to Accessory; Show Window reverses
+both and re-activates, which is needed or the window comes back behind
+whatever has focus.
+
+Every call fails soft. The extra is a convenience, and if AppKit is missing
+or an API changes, the app should still run -- `available()` returns False
+off macOS and the close button goes back to quitting.
 
 ## macOS Bluetooth permission
 
