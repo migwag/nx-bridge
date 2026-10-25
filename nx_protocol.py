@@ -148,39 +148,26 @@ def bridgehead_quaternion(a, b, c, w):
     return w, a, -c, b
 
 
-def bridgehead_angles(qw, qx, qy, qz):
-    """Yaw/pitch/roll from a Bridgehead-frame quaternion, in radians.
-
-    The standard intrinsic Z-Y-X decomposition, with yaw negated so the
-    directions match Bridgehead's: yaw anticlockwise positive, pitch upward
-    positive, roll clockwise positive.
-
-    The yaw negation is measured, not assumed. Sweeping each axis into a
-    binauraliser showed our axes mapping one to one onto its own -- no
-    permutation -- but our positive yaw turning the scene right, i.e.
-    clockwise, where Bridgehead defines positive yaw as anticlockwise.
-    Pitch and roll already agreed.
-    """
-    yaw = -math.atan2(2.0 * (qw * qz + qx * qy),
-                      1.0 - 2.0 * (qy * qy + qz * qz))
-    pitch = math.asin(max(-1.0, min(1.0, 2.0 * (qw * qy - qz * qx))))
-    roll = math.atan2(2.0 * (qw * qx + qy * qz),
-                      1.0 - 2.0 * (qx * qx + qy * qy))
-    return yaw, pitch, roll
-
-
 def profile_values_from(values):
     """Derived values -> the names a Bridgehead profile can reference.
 
-    Everything here is in Bridgehead's frame, so a profile written for
-    Bridgehead behaves the same in both applications. The Nxosc-compatible
-    output lives in osc_messages() and is unaffected.
+    The quaternion is relabelled into Bridgehead's frame, which was measured
+    directly (see bridgehead_quaternion).
+
+    The angles keep Nxosc's axis assignment, with yaw and pitch negated.
+    That too is measured: with Nxosc's decomposition the axes already lined
+    up and only those two ran backwards. An earlier attempt to re-derive the
+    angles from the relabelled quaternion looked principled but swapped
+    pitch and roll, so it is not used.
     """
     a, b, c, w = values["quaternion"]
     qw, qx, qy, qz = bridgehead_quaternion(a, b, c, w)
-    yaw, pitch, roll = bridgehead_angles(qw, qx, qy, qz)
-    return {"yaw": yaw, "pitch": pitch, "roll": roll,
-            "qw": qw, "qx": qx, "qy": qy, "qz": qz}
+    return {
+        "yaw": -values["yaw"],
+        "pitch": -values["pitch"],
+        "roll": values["roll"],
+        "qw": qw, "qx": qx, "qy": qy, "qz": qz,
+    }
 
 
 def profile_values(buf):

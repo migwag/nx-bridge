@@ -11,10 +11,10 @@ work out the convention it expects.
     python3 osc_sweep.py --axis roll --params yaw,pitch,roll --address "/[yaw,pitch,roll]"
     python3 osc_sweep.py --list
 
-Read it like this: start the sweep, watch the plugin, and note which way the
-scene moves and on which axis. Repeat for each of the three axes. That tells
-you the permutation and signs the plugin wants, which you then write as a
-profile for it.
+What this tests, and what it does not: it probes how a RECEIVER reads the
+values it is sent. It says nothing about how the tracker's physical axes map
+onto our yaw, pitch and roll -- for that, wear the tracker and run
+check_convention.py, which measures real gestures.
 
 Axes follow Bridgehead's convention, which is what our profiles now emit:
 yaw is anticlockwise positive, pitch upward positive, roll clockwise
@@ -49,10 +49,15 @@ def quaternion_for(axis, degrees):
 
 
 def values_for(axis, degrees):
+    """Set one named angle directly, and rotate the matching quaternion
+    component. Deliberately not derived one from the other: doing that
+    would make the test circular."""
+    radians = math.radians(degrees)
+    values = {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}
+    values[axis] = radians
     qw, qx, qy, qz = quaternion_for(axis, degrees)
-    yaw, pitch, roll = P.bridgehead_angles(qw, qx, qy, qz)
-    return {"yaw": yaw, "pitch": pitch, "roll": roll,
-            "qw": qw, "qx": qx, "qy": qy, "qz": qz}
+    values.update(qw=qw, qx=qx, qy=qy, qz=qz)
+    return values
 
 
 def main(argv=None):
