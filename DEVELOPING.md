@@ -44,6 +44,7 @@ math.** CI runs it on macOS and Windows for every push.
 | `fixtures/` | recorded reference captures |
 | `scan.py`, `gatt.py`, `capture.py` | the tools used to reverse engineer it |
 | `osc_listen.py` | records incoming OSC, for comparing against the original |
+| `check_convention.py` | measures our angle signs against Bridgehead's spec |
 | `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
 | `build_app.sh`, `build_app.bat` | standalone builds |
 | `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing |
@@ -91,9 +92,11 @@ Known gaps against Bridgehead:
 - `rx=` and `raw=` lines are parsed and ignored, so a Bridgehead file loads,
   but incoming control messages (`/zero`, `/travel`, `/connect`) and raw
   sensor output are not implemented.
-- Angle sign conventions are inherited from Nxosc and have not been checked
-  against a Supperware tracker. If a direction is reversed relative to
-  Bridgehead, a leading `-` on that parameter fixes it.
+- Angle sign conventions are inherited from Nxosc, which need not agree with
+  Bridgehead's. `check_convention.py` measures ours against Bridgehead's
+  documented directions and prints the parameter line that reconciles them.
+  Note that Nxosc compatibility and Bridgehead compatibility may be mutually
+  exclusive per axis -- changing a shipped default picks a side.
 
 `nx_protocol.osc_messages()` still produces the original fixed five-message
 Nxosc output. The CLI uses it and `validate.py` checks it, so the verified
