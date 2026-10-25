@@ -151,12 +151,18 @@ def bridgehead_quaternion(a, b, c, w):
 def bridgehead_angles(qw, qx, qy, qz):
     """Yaw/pitch/roll from a Bridgehead-frame quaternion, in radians.
 
-    The standard intrinsic Z-Y-X decomposition, which gives Bridgehead's
-    documented directions: yaw anticlockwise positive, pitch upward
+    The standard intrinsic Z-Y-X decomposition, with yaw negated so the
+    directions match Bridgehead's: yaw anticlockwise positive, pitch upward
     positive, roll clockwise positive.
+
+    The yaw negation is measured, not assumed. Sweeping each axis into a
+    binauraliser showed our axes mapping one to one onto its own -- no
+    permutation -- but our positive yaw turning the scene right, i.e.
+    clockwise, where Bridgehead defines positive yaw as anticlockwise.
+    Pitch and roll already agreed.
     """
-    yaw = math.atan2(2.0 * (qw * qz + qx * qy),
-                     1.0 - 2.0 * (qy * qy + qz * qz))
+    yaw = -math.atan2(2.0 * (qw * qz + qx * qy),
+                      1.0 - 2.0 * (qy * qy + qz * qz))
     pitch = math.asin(max(-1.0, min(1.0, 2.0 * (qw * qy - qz * qx))))
     roll = math.atan2(2.0 * (qw * qx + qy * qz),
                       1.0 - 2.0 * (qx * qx + qy * qy))

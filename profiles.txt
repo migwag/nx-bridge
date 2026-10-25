@@ -53,6 +53,11 @@ Composite YPR (one message, degrees)
 yaw,pitch,roll
 local 8000
 
+Audio Brewers
+/[yaw,pitch,roll]
+yaw:0,pitch:0,roll:0
+local 8585
+
 # Verified against APL Virtuoso: this is the line that matches what
 # Bridgehead sends to it. Different binauralisers expect different
 # conventions, so keep one profile per plugin rather than hunting for a
