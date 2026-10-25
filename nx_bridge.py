@@ -3,7 +3,7 @@
 nx-bridge -- Waves Nx Head Tracker to OSC, for macOS, Windows and Linux.
 
 A drop-in replacement for the macOS-only Nxosc 1.0.5: byte-for-byte compatible
-OSC output, verified against the original over 1278 frames (max error 8e-6 deg).
+OSC output, verified against the original over 3628 frames (max error 8e-6 deg).
 
     python nx_bridge.py --list
     python nx_bridge.py                       # localhost:8000, Nxosc defaults
