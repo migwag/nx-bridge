@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import traceback
 from tkinter import messagebox, ttk
 
 try:  # makes a project-local .venv importable under the macOS wrapper bundle
@@ -330,6 +331,7 @@ class App(ttk.Frame):
         self._last_frames = 0
         self._last_time = time.monotonic()
         self._rate = 0.0
+        self._dest_summary = ""
 
         root.title(APP_TITLE)
         root.resizable(False, False)
@@ -551,6 +553,7 @@ class App(ttk.Frame):
         self.worker.set_profile(profile)
 
         where = ", ".join(f"{h}:{p}" for h, p in profile.destinations)
+        self._dest_summary = where
         self._note(f"{len(profile.addresses)} message"
                    f"{'' if len(profile.addresses) == 1 else 's'} -> {where}")
 
@@ -611,6 +614,14 @@ class App(ttk.Frame):
 
     # -- event pump -----------------------------------------------------
     def _tick(self):
+        try:
+            self._refresh()
+        except Exception:
+            traceback.print_exc()        # keep going; a frozen UI is worse
+        finally:
+            self.after(int(1000 / UI_HZ), self._tick)
+
+    def _refresh(self):
         while True:
             try:
                 kind, payload = self.worker.events.get_nowait()
@@ -640,9 +651,7 @@ class App(ttk.Frame):
             self._last_frames, self._last_time = self.worker.frames, now
             self._note(f"streaming   {self._rate:.1f} Hz   "
                        f"frames {self.worker.frames}   "
-                       f"OSC -> {self.cfg['host']}:{self.cfg['port']}")
-
-        self.after(int(1000 / UI_HZ), self._tick)
+                       f"OSC -> {self._dest_summary}")
 
     def _handle(self, kind, payload):
         if kind == "scanning":
