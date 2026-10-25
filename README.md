@@ -58,8 +58,24 @@ Extract the zip **on the Windows machine**, not elsewhere, and keep
 the extracted folder from another computer, or launching the exe from inside
 the zip viewer, gives "Failed to load Python DLL".
 
-Pair the tracker in Windows Bluetooth settings first. SmartScreen may warn on
-first run: **More info → Run anyway**.
+The tracker does not need pairing in Windows Bluetooth settings — the app
+finds and connects to it directly, as on macOS. SmartScreen may warn on first
+run: **More info → Run anyway**.
+
+### Linux
+
+No prebuilt binary, but the source should work: `bleak` talks to BlueZ over
+D-Bus, and the GUI is Tkinter, so nothing in the app is macOS- or
+Windows-specific.
+
+```
+pip install -r requirements.txt
+python nxosc_reborn.py
+```
+
+**Untested.** Nobody has yet run it on Linux, so treat it as unverified
+rather than supported. If you try it, a report either way is welcome. You may
+need your distribution's Tk package (`python3-tk` on Debian and Ubuntu).
 
 ---
 
@@ -162,7 +178,7 @@ platform, and what you expected.
 
 Known gaps: the macOS and Windows builds are unsigned, so both show a warning
 on first launch. Bridgehead's `rx=` and `raw=` lines are accepted but do
-nothing. There is no Linux build, though the source runs there.
+nothing. Linux is expected to work from source but has not been tried.
 
 ## Building it yourself
 

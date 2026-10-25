@@ -14,6 +14,9 @@ README explains how to get the old behaviour back.
 
 Both are standalone; no Python needed.
 
+**Linux** has no prebuilt binary, but the source is expected to work — bleak
+uses BlueZ and the GUI is Tkinter. Untested, so reports are welcome.
+
 **macOS.** The app is not signed by an identified developer yet, so the first
 launch is blocked. Open it once, dismiss the warning, then go to System
 Settings → Privacy & Security, scroll to the bottom and click **Open Anyway**.

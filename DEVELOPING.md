@@ -162,6 +162,14 @@ Every call fails soft. The extra is a convenience, and if AppKit is missing
 or an API changes, the app should still run -- `available()` returns False
 off macOS and the close button goes back to quitting.
 
+## Bluetooth on each platform
+
+**macOS** needs the permission dance below. **Windows** needs nothing: bleak
+uses WinRT, and the tracker does not have to be paired in Bluetooth settings
+first -- scanning and connecting behave as they do on macOS. **Linux** should
+work from source through bleak's BlueZ backend over D-Bus, with Tkinter for
+the GUI, but nobody has run it yet; treat it as unverified.
+
 ## macOS Bluetooth permission
 
 CoreBluetooth terminates any process without
