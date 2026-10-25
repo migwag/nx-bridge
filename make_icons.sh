@@ -35,6 +35,11 @@ iconutil -c icns "$SET" -o NXOSC_Reborn.icns
 # --- window icon for running from source ---------------------------------
 sips -z 256 256 "$SRC" --out icon_256.png >/dev/null 2>&1
 
+# --- menu bar icons -------------------------------------------------------
+# Drawn separately: a template image takes its shape from alpha, so the app
+# icon's opaque background would render as a solid block.
+python3 "$HERE/make_icon_art.py" --menubar >/dev/null && echo "  menubar_idle.png / menubar_active.png"
+
 # --- Windows .ico ---------------------------------------------------------
 # An .ico is a small container; since Windows Vista its entries may be PNGs,
 # so this needs no image library -- just the PNGs sips already produced.

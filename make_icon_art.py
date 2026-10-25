@@ -97,6 +97,56 @@ def render(size):
     return rows
 
 
+# --- menu bar variants -----------------------------------------------------
+# The menu bar needs its own drawing. A template image is rendered from the
+# alpha channel alone, so the opaque background squircle of the app icon
+# would come out as a solid block. These carry the mark in alpha instead,
+# with heavier strokes so it survives at 18 points.
+
+MB_HEAD_RADIUS = 0.46
+MB_HEAD_STROKE = 0.115
+MB_NOSE_OFFSET = 0.60
+MB_NOSE_SIZE   = 0.20
+MB_ARC_RADIUS  = 0.86
+MB_ARC_STROKE  = 0.105
+MB_ARC_GAP     = 0.55
+
+
+def render_menubar(size, active):
+    """The mark alone, on transparency. `active` adds the yaw arc."""
+    rows = []
+    px = 2.0 / size * 2
+    for row_index in range(size):
+        row = bytearray()
+        y = (row_index + 0.5) / size * 2 - 1
+        for col_index in range(size):
+            x = (col_index + 0.5) / size * 2 - 1
+
+            ring = abs(math.hypot(x, y - HEAD_Y) - MB_HEAD_RADIUS) - MB_HEAD_STROKE
+            alpha = _coverage(ring, px)
+
+            nose_y = y + MB_NOSE_OFFSET
+            nose = max(abs(x) * 0.86 + nose_y * 0.5, -nose_y - MB_NOSE_SIZE)
+            alpha = max(alpha, _coverage(nose, px))
+
+            if active:
+                angle = math.atan2(y - HEAD_Y, x)
+                within = 1.0 if MB_ARC_GAP < angle < math.pi - MB_ARC_GAP else 0.0
+                arc = abs(math.hypot(x, y - HEAD_Y) - MB_ARC_RADIUS) - MB_ARC_STROKE
+                alpha = max(alpha, _coverage(arc, px) * within)
+                for end in (MB_ARC_GAP, math.pi - MB_ARC_GAP):
+                    cx = MB_ARC_RADIUS * math.cos(end)
+                    cy = MB_ARC_RADIUS * math.sin(end) + HEAD_Y
+                    alpha = max(alpha, _coverage(
+                        math.hypot(x - cx, y - cy) - MB_ARC_STROKE * 1.5, px))
+
+            # Template images take their shape from alpha; macOS supplies the
+            # colour, so the pixels themselves are plain black.
+            row += bytes((0, 0, 0, round(max(0.0, min(1.0, alpha)) * 255)))
+        rows.append(bytes(row))
+    return rows
+
+
 def write_png(path, rows, size):
     def chunk(tag, payload):
         return (struct.pack(">I", len(payload)) + tag + payload
@@ -113,6 +163,12 @@ def write_png(path, rows, size):
 
 
 def main():
+    if "--menubar" in sys.argv:
+        for name, active in (("menubar_idle.png", False),
+                             ("menubar_active.png", True)):
+            written = write_png(name, render_menubar(36, active), 36)
+            print(f"wrote {name}  36x36  {written} bytes")
+        return
     path = sys.argv[1] if len(sys.argv) > 1 else "icon.png"
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 1024
     written = write_png(path, render(size), size)

@@ -394,7 +394,8 @@ class App(ttk.Frame):
             return
         bar = MB.MenuBar(
             title="Nx",
-            icon_path=resource_path("icon_256.png"),
+            icon_idle=resource_path("menubar_idle.png"),
+            icon_active=resource_path("menubar_active.png"),
             tooltip=APP_TITLE,
             items=[
                 ("Not connected", self.show_window),   # 0: doubles as status
@@ -809,6 +810,8 @@ class App(ttk.Frame):
                        f"frames {self.worker.frames}   "
                        f"OSC -> {self._dest_summary}")
             self._menubar_status(f"Streaming {self._rate:.0f} Hz")
+            if self.menubar:
+                self.menubar.set_active(True)
 
     def _handle(self, kind, payload):
         if kind == "scanning":
@@ -855,6 +858,8 @@ class App(ttk.Frame):
             self._note("connection lost" if kind == "dropped" else "not connected")
             self._menubar_status("Connection lost" if kind == "dropped"
                                  else "Not connected")
+            if self.menubar:
+                self.menubar.set_active(False)
         elif kind == "recentered":
             self._note("reset center sent")
         elif kind == "error":
