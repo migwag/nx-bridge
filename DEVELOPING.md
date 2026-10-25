@@ -45,6 +45,8 @@ math.** CI runs it on macOS and Windows for every push.
 | `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
 | `build_app.sh`, `build_app.bat` | standalone builds |
 | `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing |
+| `icon.png` | icon source art; `make_icons.sh` converts it |
+| `make_icons.sh` | generates the `.icns`, `.ico` and window icon |
 | `make_bundle.sh` | macOS Bluetooth wrapper for running from source |
 | `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for that wrapper |
 
@@ -86,6 +88,32 @@ of another process inherits that parent's missing permission, which is why it
 must be launched through LaunchServices (`open`). A bundle launched this way
 also gets a read-only working directory, so scripts write output to absolute
 paths.
+
+## Icons
+
+Edit `icon.png` -- one square PNG, 1024x1024 with transparency -- then:
+
+```
+./make_icons.sh          # or: ./make_icons.sh path/to/your.png
+```
+
+That writes three committed files, so Windows and Linux builds need no icon
+tooling:
+
+| File | Used for |
+|---|---|
+| `NXOSC_Reborn.icns` | the macOS app and its Dock tile |
+| `NXOSC_Reborn.ico` | the Windows executable |
+| `icon_256.png` | the window icon, on Windows and Linux |
+
+Rebuild with `./build_app.sh` to pick them up. The script needs macOS, since it
+uses `sips` and `iconutil`; the `.ico` is assembled directly from PNGs, which
+is legal since Vista, so no image library is involved.
+
+macOS caches icons aggressively. If the Dock shows the old one after a rebuild,
+`touch dist/NXOSC_Reborn.app` or log out and back in.
+
+The current `icon.png` is a placeholder -- replace it.
 
 ## Building standalone apps
 

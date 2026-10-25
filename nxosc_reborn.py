@@ -38,6 +38,28 @@ UI_HZ = 20          # readout refresh; the OSC stream always runs at the full 50
 
 
 # --------------------------------------------------------------------- config
+def resource_path(name: str) -> str:
+    """Locate a bundled file, frozen (PyInstaller) or running from source."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+
+def set_window_icon(root: tk.Tk) -> None:
+    """Give the window our icon where the platform uses one.
+
+    macOS takes the Dock icon from the app bundle instead, so this is mainly
+    for Windows and Linux. Any failure is cosmetic -- never fatal.
+    """
+    path = resource_path("icon_256.png")
+    if not os.path.exists(path):
+        return
+    try:
+        root._icon_image = tk.PhotoImage(file=path)   # keep a reference alive
+        root.iconphoto(True, root._icon_image)
+    except Exception:
+        pass
+
+
 def config_path() -> str:
     if sys.platform == "darwin":
         base = os.path.expanduser("~/Library/Application Support")
@@ -574,6 +596,7 @@ class App(ttk.Frame):
 
 def main():
     root = tk.Tk()
+    set_window_icon(root)
     App(root)
     root.mainloop()
 
