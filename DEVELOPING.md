@@ -45,6 +45,7 @@ math.** CI runs it on macOS and Windows for every push.
 | `scan.py`, `gatt.py`, `capture.py` | the tools used to reverse engineer it |
 | `osc_listen.py` | records incoming OSC, for comparing against the original |
 | `check_convention.py` | measures our angle signs against Bridgehead's spec |
+| `osc_sweep.py` | sends a synthetic single-axis rotation, no tracker needed |
 | `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
 | `build_app.sh`, `build_app.bat` | standalone builds |
 | `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing |
@@ -101,6 +102,25 @@ Known gaps against Bridgehead:
 `nx_protocol.osc_messages()` still produces the original fixed five-message
 Nxosc output. The CLI uses it and `validate.py` checks it, so the verified
 path stays verified; the GUI no longer goes through it.
+
+## Plugin conventions
+
+There is no single correct orientation convention: binauralisers disagree,
+and a profile that is right for one is wrong for another. APL Virtuoso and
+Audio Brewers want different things from the same tracker. This is why
+profiles are per-receiver -- the answer is a profile per plugin, not a global
+frame.
+
+`osc_sweep.py` identifies what a plugin expects without involving the
+tracker. It sends a clean synthetic rotation about one axis at a time, so
+you watch the plugin rather than your own head:
+
+    python3 osc_sweep.py --axis yaw
+    python3 osc_sweep.py --axis pitch --params qw,qx,qy,qz --address /quaternion
+
+Run it once per axis and note which axis the plugin moves and in which
+direction. That gives the permutation and signs directly, which you then
+write as a profile named for that plugin.
 
 ## Smoothing and send rate
 

@@ -117,8 +117,11 @@ messages a second per parameter.
 **The output looks jittery.** Tick **Smoothing**. The tracker is steady at rest,
 so visible jitter usually means a receiver resolving small movements sharply.
 
-**An angle moves the wrong way.** Conventions differ between tools. Put a `-`
-in front of that parameter, for instance `-yaw,pitch,roll`.
+**An angle moves the wrong way, or the wrong axis moves.** Binauralisers
+disagree about orientation conventions -- there is no single correct one, and
+a profile that suits one plugin can be wrong for another. Reverse a value with
+a leading `-`, or reorder the parameters. Keep a profile per plugin; the
+shipped file has one for APL Virtuoso as an example.
 
 **On macOS, running from source quits immediately with no message.** macOS
 requires Bluetooth permission. Either grant it to your terminal under System

@@ -53,6 +53,15 @@ Composite YPR (one message, degrees)
 yaw,pitch,roll
 local 8000
 
+# Verified against APL Virtuoso: this is the line that matches what
+# Bridgehead sends to it. Different binauralisers expect different
+# conventions, so keep one profile per plugin rather than hunting for a
+# single "correct" one. osc_sweep.py identifies a new plugin's convention.
+APL Virtuoso
+/quaternion
+qw,qy,-qx,qz
+local 8000
+
 Quaternion xyzw (one message)
 /quaternion
 qx,qy,qz,qw
