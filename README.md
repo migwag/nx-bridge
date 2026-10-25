@@ -1,188 +1,99 @@
-# nx-bridge / NXOSC_Reborn
+# NXOSC_Reborn
 
-Waves Nx Head Tracker to OSC, on **macOS, Windows and Linux** -- as a GUI
-(`NXOSC_Reborn`) or a CLI (`nx-bridge`).
+Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS, Windows
+and Linux.
 
-A maintainable replacement for the macOS-only [Nxosc](https://www.audiooo.com/)
-1.0.5. The OSC output is byte-for-byte compatible with the original, so
-anything already listening to Nxosc works unchanged.
+A replacement for the macOS-only Nxosc 1.0.5. The OSC output is identical, so
+anything already listening to Nxosc keeps working with no changes.
 
-## Install
+- `NXOSC_Reborn` -- the app, with a window
+- `nx-bridge` -- the same thing as a command-line tool
+
+## Getting it
+
+**A ready-built app**, needing no Python: download it from the
+[Actions tab](../../actions) (open the newest `build` run and grab the artifact
+for your platform), or build it yourself -- see [DEVELOPING.md](DEVELOPING.md).
+
+**Or run it from source**, with Python 3.10 or newer:
 
 ```
 pip install -r requirements.txt
-```
-
-## Use -- GUI
-
-```
 python nxosc_reborn.py
 ```
 
-Two tabs, following the original Nxosc layout:
+## Using it
 
-- **Tracker** -- Connect/Disconnect, device and battery, live quaternion,
-  Euler xyz and yaw/pitch/roll readouts, and **Reset Center** (the original's
-  name for recentering). A status line shows the stream rate and destination.
-- **OSC** -- OSC IP and port, degrees or radians, and a per-message row with a
-  checkbox and an editable address, so you can rename or mute any of the five
-  messages. **Restore Nxosc Defaults** puts everything back to byte-compatible
-  output. Settings persist between runs.
+Power the tracker on first -- it sleeps when idle. Make sure nothing else holds
+its Bluetooth connection; quit the original Nxosc if it is running.
 
-Press Connect and it scans; with one tracker in range it connects straight
-away, with several it offers a picker (the original's "Device Scan" sheet).
+Press **Connect**. It finds the tracker and starts streaming. The window has
+two tabs:
 
-## Use -- CLI
+**Tracker** shows the device, battery level and live orientation -- quaternion,
+Euler angles, and yaw / pitch / roll -- plus the stream rate and where OSC is
+going. **Reset Center** makes your current head position the new centre; use it
+once the tracker is on your head.
+
+**OSC** sets the destination IP and port, degrees or radians, and the five
+message addresses. Each has a checkbox, so you can rename or switch off
+individual messages. **Restore Nxosc Defaults** puts everything back.
+
+Settings are remembered between runs.
+
+### Command line
 
 ```
-python nx_bridge.py --list                      # find the tracker
-python nx_bridge.py                             # Nxosc defaults: 127.0.0.1:8000
+python nx_bridge.py                             # localhost:8000, as Nxosc
+python nx_bridge.py --list                       # list nearby trackers
 python nx_bridge.py --host 10.0.0.5 --port 9000
-python nx_bridge.py --recenter                  # recenter on connect
+python nx_bridge.py --recenter                   # reset centre on connect
 ```
 
-Power the tracker on and make sure nothing else holds its BLE connection --
-quit Nxosc first if it is running.
+`--help` lists the rest. Ctrl-C to stop.
 
 ## OSC output
 
-50 Hz, five messages per frame, all float32 -- identical to Nxosc 1.0.5:
+50 Hz, five messages per frame, all float32 -- the same as Nxosc 1.0.5:
 
-| Address | Args | Meaning |
+| Address | Values | Meaning |
 |---|---|---|
-| `/nxosc/quaternion` | 4 | x, y, z, w (unit quaternion) |
-| `/nxosc/xyz` | 3 | Euler degrees |
-| `/SceneRotator/yaw` | 1 | degrees, IEM SceneRotator convention |
+| `/nxosc/quaternion` | 4 | x, y, z, w -- a unit quaternion |
+| `/nxosc/xyz` | 3 | Euler angles, degrees |
+| `/SceneRotator/yaw` | 1 | degrees |
 | `/SceneRotator/pitch` | 1 | degrees |
 | `/SceneRotator/roll` | 1 | degrees |
 
-## Building a standalone app
+`/SceneRotator/*` follows the IEM SceneRotator convention, which is what
+SceneRotator-compatible binauralisers and rotators expect. Because the output
+matches Nxosc exactly, anything that worked with Nxosc works here.
 
-No Python install needed on the target machine.
+Angles can be switched to radians in the OSC tab.
 
-```
-./build_app.sh        # macOS/Linux  -> dist/NXOSC_Reborn.app
-build_app.bat         # Windows      -> dist\NXOSC_Reborn\NXOSC_Reborn.exe
-```
+## If something goes wrong
 
-PyInstaller **cannot cross-compile**: a Windows .exe has to be built on
-Windows. If you only have a Mac, push to GitHub and let
-`.github/workflows/build.yml` build both -- it also runs `validate.py` and
-`analyze.py`, which need no hardware, so CI verifies the protocol decode
-rather than just that it compiles.
+**No tracker found.** It powers itself off when idle -- wake it and try again.
+Only one program can hold the connection, so quit the original Nxosc first.
 
-The macOS bundle is the better answer to the Bluetooth-permission problem:
-`NXOSC_Reborn.spec` writes `NSBluetoothAlwaysUsageDescription` into the app's
-own `Info.plist`, so the frozen app gets a normal permission prompt and needs
-none of the `NxTracker.app` wrapper described below.
+**Nothing arrives at the receiving end.** OSC is UDP and silent on failure.
+Check the IP and port match the receiver, and that the messages you need are
+ticked in the OSC tab. If another program already listens on port 8000, point
+one of them elsewhere.
 
-Two caveats:
+**On macOS, running from source quits immediately with no message.** macOS
+requires Bluetooth permission. Either grant it to your terminal under System
+Settings > Privacy & Security > Bluetooth, or use the built app, which asks for
+permission normally. ([DEVELOPING.md](DEVELOPING.md) has a third option.)
 
-- The build is **ad-hoc signed**, which is fine on the machine that built it.
-  Handing it to anyone else needs a Developer ID signature and notarisation --
-  see below.
-- It is built for the **architecture of the build machine**. Running on both
-  Apple Silicon and Intel needs a `universal2` Python, or one build each.
+**A tracker address from one computer does not work on another.** macOS
+identifies Bluetooth devices with a per-machine ID, so `--address` values are
+not portable. Leave it out and let it scan.
 
-## Signing for distribution
+## More
 
-With a paid Apple Developer account, `./sign_and_notarize.sh` does the whole
-pipeline: signs every nested binary inside-out (Apple deprecates `--deep`),
-applies the hardened runtime with `entitlements.plist`, uploads to Apple,
-staples the ticket, and verifies with `spctl` the way Gatekeeper will.
+- [PROTOCOL.md](PROTOCOL.md) -- the tracker's Bluetooth protocol, documented
+- [DEVELOPING.md](DEVELOPING.md) -- building, testing, signing, extending
 
-Two one-time setup steps are yours, because both involve your credentials:
-
-1. **Certificate.** Xcode > Settings > Accounts > Manage Certificates > + >
-   *Developer ID Application*. Check it landed:
-
-       security find-identity -v -p codesigning
-
-2. **Notarisation credentials**, stored in the keychain so no password ever
-   appears on a command line:
-
-       xcrun notarytool store-credentials "nxosc-notary" \
-         --apple-id "you@example.com" --team-id "TEAMID"
-
-   It prompts for an app-specific password from appleid.apple.com. After that
-   everything refers to the profile name, never the secret.
-
-`SKIP_NOTARIZE=1 ./sign_and_notarize.sh` signs without uploading anything.
-
-`entitlements.plist` grants `allow-unsigned-executable-memory` (CPython uses
-writable-executable memory via libffi) and `disable-library-validation`
-(PyInstaller ships ~62 libraries that are not all team-signed). Both are
-required for a frozen Python app under the hardened runtime.
-
-## Platform notes
-
-**macOS** will kill any process that touches CoreBluetooth without an
-`NSBluetoothAlwaysUsageDescription` in an `Info.plist` -- a bare
-`python nx_bridge.py` aborts with SIGABRT and no error message. Two options:
-
-- Run it from a terminal you have granted Bluetooth access under
-  System Settings -> Privacy & Security -> Bluetooth.
-- Or run it inside an app bundle that declares the key. `./make_bundle.sh`
-  builds one from the python.org `Python.app` stub:
-
-      ./make_bundle.sh
-      open -a "$PWD/NxTracker.app" --args "$PWD/gui_run.py"            # GUI
-      open -a "$PWD/NxTracker.app" --args "$PWD/bridge_run.py" --port 8000
-
-  Output goes to `bridge.log`, since a bundle launched this way has no terminal.
-
-Note macOS attributes the Bluetooth permission to the *responsible process*,
-so a bundle launched as a child of another process inherits that parent's
-(missing) permission. Launching through LaunchServices (`open`) avoids this.
-
-**Windows** needs none of that -- bleak uses WinRT and the device pairs as a
-normal BLE peripheral.
-
-**Addresses differ by platform.** macOS reports an opaque per-host UUID rather
-than a MAC address, so an `--address` value is not portable between machines.
-
-## Files
-
-| File | Purpose |
-|---|---|
-| `nx_protocol.py` | pure decode logic, no I/O -- the reusable core |
-| `nxosc_reborn.py` | the GUI |
-| `nx_bridge.py` | CLI: BLE in, OSC out |
-| `PROTOCOL.md` | full protocol documentation and how it was derived |
-| `scan.py`, `gatt.py`, `capture.py` | the reverse-engineering tools |
-| `osc_listen.py` | records incoming OSC, for comparing against the original |
-| `validate.py`, `analyze.py` | verification harnesses (run with no args) |
-| `fixtures/` | captured reference data, used by the harnesses |
-| `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
-| `build_app.sh`, `build_app.bat` | one-shot standalone builds |
-| `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing pipeline |
-| `make_bundle.sh` | macOS Bluetooth wrapper, for running from source |
-| `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for running under that wrapper |
-
-## Setup
-
-```
-python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
-./make_bundle.sh          # macOS only
-```
-
-Check it works without any hardware:
-
-```
-./.venv/bin/python validate.py    # replays 3628 recorded Nxosc frames
-./.venv/bin/python analyze.py     # replays 1004 recorded raw packets
-```
-
-## Extending
-
-`nx_protocol.osc_messages()` is the single place that decides what goes out,
-and `compute()` returns every derived value so callers never repeat the math.
-Add an address, change a convention, or apply smoothing there and the GUI, the
-CLI and anything else importing the module all pick it up. `decode_packet()` hands you
-the raw unit quaternion if you would rather do your own math.
-
-## Provenance
-
-Reverse engineered from Nxosc 1.0.5 for interoperability, and verified against
-it: 3628 captured frames reproduce to within 8e-6 degrees. See `PROTOCOL.md`.
+The protocol is closed and undocumented; it was reverse engineered for
+interoperability and checked against the original across 3628 recorded frames,
+which it reproduces to within 8e-6 degrees.
