@@ -58,7 +58,9 @@ def values_for(axis, degrees):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--axis", choices=("yaw", "pitch", "roll"), default="yaw")
+    ap.add_argument("--axis", choices=("yaw", "pitch", "roll", "all"),
+                    default="yaw",
+                    help="'all' sweeps each in turn, announcing them")
     ap.add_argument("--amplitude", type=float, default=60.0,
                     help="peak angle in degrees (default: %(default)s)")
     ap.add_argument("--period", type=float, default=8.0,
@@ -99,10 +101,31 @@ def main(argv=None):
 
     where = ", ".join(f"{h}:{p}" for h, p in profile.destinations)
     print(f"sweeping {args.axis} +-{args.amplitude:g} deg, "
-          f"{args.period:g}s per cycle, {args.cycles:g} cycles")
+          f"{args.period:g}s per cycle, {args.cycles:g} cycles each")
     print(f"  {profile.raw_address}   {profile.raw_params}   -> {where}")
     print("  watch the plugin: which axis moves, and which way at the peak?\n")
 
+    axes = ("yaw", "pitch", "roll") if args.axis == "all" else (args.axis,)
+    for index, axis in enumerate(axes):
+        if len(axes) > 1:
+            announce(f"Now sweeping {axis}")
+            print(f"\n--- {axis} ---")
+        sweep(axis, args, profile, clients)
+        if index < len(axes) - 1:
+            time.sleep(1.0)
+
+    print("\n  done. For each sweep, note which axis the plugin moved and")
+    print("  which way at the peak -- that is the mapping.")
+    return 0
+
+
+def announce(text):
+    if sys.platform == "darwin":
+        import subprocess
+        subprocess.run(["say", text], check=False)
+
+
+def sweep(axis, args, profile, clients):
     start = time.monotonic()
     total = args.period * args.cycles
     try:
@@ -112,21 +135,20 @@ def main(argv=None):
                 break
             phase = 2 * math.pi * now / args.period
             angle = args.amplitude * math.sin(phase)
-            for address, outgoing in profile.messages(values_for(args.axis, angle)):
+            for address, outgoing in profile.messages(values_for(axis, angle)):
                 for client in clients:
                     client.send_message(address, outgoing)
-            sys.stdout.write(f"\r  {args.axis} {angle:+7.1f} deg   ")
+            sys.stdout.write(f"\r  {axis} {angle:+7.1f} deg   ")
             sys.stdout.flush()
             time.sleep(1.0 / RATE)
     except KeyboardInterrupt:
         pass
 
     # leave it centred rather than wherever the sweep stopped
-    for address, outgoing in profile.messages(values_for(args.axis, 0.0)):
+    for address, outgoing in profile.messages(values_for(axis, 0.0)):
         for client in clients:
             client.send_message(address, outgoing)
     print("\n  returned to centre")
-    return 0
 
 
 if __name__ == "__main__":
