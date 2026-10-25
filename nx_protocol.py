@@ -106,62 +106,6 @@ DEFAULT_ADDRESSES = {
 }
 
 
-# What each message carries, in order. Used to label the transform UI and to
-# size the per-component settings.
-COMPONENT_LABELS = {
-    "quaternion": ("x", "y", "z", "w"),
-    "xyz":        ("x", "y", "z"),
-    "yaw":        ("yaw",),
-    "pitch":      ("pitch",),
-    "roll":       ("roll",),
-}
-
-# Messages carrying angles: offsets are meaningful and results are wrapped.
-# Offsetting a quaternion component is not -- it would break normalisation --
-# so the quaternion gets reordering and sign flips only.
-ANGLE_KEYS = ("xyz", "yaw", "pitch", "roll")
-
-
-def default_transform(key):
-    n = len(COMPONENT_LABELS[key])
-    return {"order": list(range(n)), "signs": [1] * n, "offsets": [0.0] * n}
-
-
-def default_transforms():
-    return {k: default_transform(k) for k in MESSAGE_KEYS}
-
-
-def _wrap(value, degrees):
-    """Fold an angle back into +-180 degrees (or +-pi)."""
-    limit = 180.0 if degrees else math.pi
-    return (value + limit) % (2 * limit) - limit
-
-
-def apply_transform(key, values, transform, degrees=True):
-    """Reorder, negate and offset one message's values.
-
-    order[i] says which source component lands in output slot i, so an order
-    of [3, 0, 1, 2] turns xyzw into wxyz.
-    """
-    if not transform:
-        return list(values)
-    n = len(values)
-    order = transform.get("order") or list(range(n))
-    signs = transform.get("signs") or [1] * n
-    offsets = transform.get("offsets") or [0.0] * n
-
-    out = []
-    for slot in range(n):
-        src = order[slot] if slot < len(order) else slot
-        if not 0 <= src < n:
-            src = slot
-        v = values[src] * (signs[slot] if slot < len(signs) else 1)
-        if key in ANGLE_KEYS:
-            v = _wrap(v + (offsets[slot] if slot < len(offsets) else 0.0), degrees)
-        out.append(v)
-    return out
-
-
 def compute(buf):
     """10 raw bytes -> every derived value, so callers need not repeat the math.
 
@@ -180,14 +124,29 @@ def compute(buf):
     }
 
 
-def osc_messages(buf, addresses=None, enabled=None, degrees=True,
-                 transforms=None):
+def profile_values(buf):
+    """10 raw bytes -> the named values a Bridgehead profile can reference.
+
+    Angles are radians here; the profile applies its own scaling. Quaternion
+    components use Bridgehead's names, mapped from our output frame.
+    """
+    v = compute(buf)
+    x, y, z, w = v["quaternion"]
+    return {
+        "yaw": v["yaw"], "pitch": v["pitch"], "roll": v["roll"],
+        "qw": w, "qx": x, "qy": y, "qz": z,
+    }
+
+
+def osc_messages(buf, addresses=None, enabled=None, degrees=True):
     """10 raw bytes -> list of (address, [args]).
 
     With no arguments the output is exactly what Nxosc 1.0.5 emits. Pass
     `addresses` to rename messages, `enabled` (an iterable of keys) to send
-    only some of them, degrees=False for radians, or `transforms` to reorder,
-    negate or offset the values of individual messages.
+    only some of them, or degrees=False to send angles in radians.
+
+    The GUI does not use this -- it builds messages from a Bridgehead profile
+    via nx_profile. This is the CLI's path and the one validate.py checks.
     """
     v = compute(buf)
     addr = dict(DEFAULT_ADDRESSES)
@@ -204,10 +163,4 @@ def osc_messages(buf, addresses=None, enabled=None, degrees=True,
         "pitch":      [v["pitch"] * scale],
         "roll":       [v["roll"] * scale],
     }
-    out = []
-    for k in keep:
-        values = args[k]
-        if transforms:
-            values = apply_transform(k, values, transforms.get(k), degrees)
-        out.append((addr[k], values))
-    return out
+    return [(addr[k], args[k]) for k in keep]

@@ -36,7 +36,7 @@ ICON_EXE = ICON_MAC if sys.platform == "darwin" else ICON_WIN
 
 # Shipped so the window itself carries the icon, which matters on Windows and
 # Linux; on macOS the bundle icon covers the Dock.
-DATAS = [("icon_256.png", ".")] if os.path.exists("icon_256.png") else []
+DATAS = [(f, ".") for f in ("icon_256.png", "profiles.txt") if os.path.exists(f)]
 
 BLUETOOTH_REASON = (
     "NXOSC Reborn reads head orientation from the Waves Nx Head Tracker "

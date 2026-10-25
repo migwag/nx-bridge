@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -31,6 +32,7 @@ except ImportError:
 from bleak import BleakClient, BleakScanner
 from pythonosc.udp_client import SimpleUDPClient
 
+import nx_profile as NP
 import nx_protocol as P
 
 APP_NAME = "NXOSC_Reborn"      # internal: config directory, bundle id
@@ -71,35 +73,60 @@ def config_path() -> str:
     return os.path.join(base, APP_NAME, "config.json")
 
 
+DEFAULT_PROFILE_NAME = "SceneRotator (IEM, SPARTA, degrees)"
+
 DEFAULT_CONFIG = {
-    "host": "localhost",
-    "port": 8000,
-    "degrees": True,
-    "addresses": dict(P.DEFAULT_ADDRESSES),
-    "enabled": list(P.MESSAGE_KEYS),
-    "transforms": P.default_transforms(),
+    # The active profile is always built from these three fields; the
+    # drop-down simply fills them in. Editing them yields a one-off profile.
+    "profile_name": DEFAULT_PROFILE_NAME,
+    "address": "/SceneRotator/[yaw,pitch,roll]",
+    "params": "yaw,pitch,roll",
+    "destinations": "local 8000",
     "last_address": "",
 }
 
 
+def profiles_path() -> str:
+    return os.path.join(os.path.dirname(config_path()), "profiles.txt")
+
+
+def ensure_profiles_file() -> str:
+    """Seed the user's profiles.txt from the one we ship, once."""
+    path = profiles_path()
+    if os.path.exists(path):
+        return path
+    shipped = resource_path("profiles.txt")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(shipped) as src, open(path, "w") as dst:
+            dst.write(src.read())
+    except OSError:
+        pass
+    return path
+
+
+def load_profiles():
+    """-> (profiles, errors). Falls back to the shipped file if need be."""
+    for path in (ensure_profiles_file(), resource_path("profiles.txt")):
+        try:
+            with open(path) as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        profiles, errors, _extras = NP.parse_profiles(text)
+        if profiles or errors:
+            return profiles, errors
+    return [], []
+
+
 def load_config() -> dict:
-    cfg = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
+    cfg = dict(DEFAULT_CONFIG)
     try:
         with open(config_path()) as fh:
             stored = json.load(fh)
         for key, value in stored.items():
-            if key in cfg:
+            if key in cfg:            # unknown keys from older versions lapse
                 cfg[key] = value
-        # never let a stale file drop a message key, or carry a transform
-        # whose length no longer matches the message
-        for key in P.MESSAGE_KEYS:
-            cfg["addresses"].setdefault(key, P.DEFAULT_ADDRESSES[key])
-            want = len(P.COMPONENT_LABELS[key])
-            t = cfg["transforms"].get(key) or {}
-            if (len(t.get("order", [])) != want
-                    or len(t.get("signs", [])) != want
-                    or len(t.get("offsets", [])) != want):
-                cfg["transforms"][key] = P.default_transform(key)
     except (OSError, ValueError):
         pass
     return cfg
@@ -130,11 +157,11 @@ class TrackerWorker:
         self.latest = None
         self.frames = 0
         self._client: BleakClient | None = None
-        self._osc: SimpleUDPClient | None = None
+        self.profile = None
+        self._clients: list = []
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        self.rebuild_osc()
 
     # -- plumbing -------------------------------------------------------
     def _run_loop(self):
@@ -147,12 +174,16 @@ class TrackerWorker:
     def _post(self, kind, payload=None):
         self.events.put((kind, payload))
 
-    def rebuild_osc(self):
-        try:
-            self._osc = SimpleUDPClient(self.cfg["host"], int(self.cfg["port"]))
-        except Exception as exc:
-            self._osc = None
-            self._post("error", f"bad OSC destination: {exc}")
+    def set_profile(self, profile):
+        """Swap in a parsed profile and open a socket per destination."""
+        clients = []
+        for host, port in profile.destinations:
+            try:
+                clients.append(SimpleUDPClient(host, port))
+            except Exception as exc:
+                self._post("error", f"cannot send to {host}:{port} -- {exc}")
+        self.profile = profile
+        self._clients = clients
 
     # -- public, callable from the GUI thread ---------------------------
     def scan(self):
@@ -268,21 +299,19 @@ class TrackerWorker:
     def _on_packet(self, _handle, data: bytearray):
         if len(data) != P.PACKET_LEN:
             return
+        profile = self.profile
         try:
             values = P.compute(bytes(data))
-            messages = P.osc_messages(
-                bytes(data),
-                addresses=self.cfg["addresses"],
-                enabled=self.cfg["enabled"],
-                degrees=self.cfg["degrees"],
-                transforms=self.cfg["transforms"],
-            )
+            if profile is not None:
+                outgoing = profile.messages(P.profile_values(bytes(data)))
+            else:
+                outgoing = ()
         except Exception:
             return
-        if self._osc is not None:
+        for client in self._clients:
             try:
-                for address, args in messages:
-                    self._osc.send_message(address, args)
+                for address, args in outgoing:
+                    client.send_message(address, args)
             except Exception:
                 pass
         self.frames += 1
@@ -307,6 +336,10 @@ class App(ttk.Frame):
         self.grid(sticky="nsew")
 
         self._build()
+        # Activate the stored profile so the worker can send from the first
+        # packet, without waiting for the user to visit the OSC tab.
+        self._on_apply()
+        self._note("not connected")
         self._tick()
         root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -316,13 +349,10 @@ class App(ttk.Frame):
         notebook.grid(row=0, column=0, sticky="nsew")
         tracker = ttk.Frame(notebook, padding=12)
         osc = ttk.Frame(notebook, padding=12)
-        transform = ttk.Frame(notebook, padding=12)
         notebook.add(tracker, text="Tracker")
         notebook.add(osc, text="OSC")
-        notebook.add(transform, text="Transform")
         self._build_tracker(tracker)
         self._build_osc(osc)
-        self._build_transform(transform)
 
         self.status = ttk.Label(self, text="not connected", anchor="w")
         self.status.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -377,113 +407,114 @@ class App(ttk.Frame):
         parent.columnconfigure(1, weight=1)
         row = 0
 
-        self.host_var = tk.StringVar(value=str(self.cfg["host"]))
-        self.port_var = tk.StringVar(value=str(self.cfg["port"]))
-        for label, var in (("OSC IP", self.host_var), ("OSC Port", self.port_var)):
-            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=2)
-            ttk.Entry(parent, textvariable=var, width=22).grid(
-                row=row, column=1, sticky="ew", pady=2)
-            row += 1
-
-        ttk.Label(parent, text="Angle units").grid(row=row, column=0, sticky="w",
-                                                   pady=(8, 2))
-        self.units_var = tk.StringVar(value="deg" if self.cfg["degrees"] else "rad")
-        units = ttk.Frame(parent)
-        units.grid(row=row, column=1, sticky="e", pady=(8, 2))
-        ttk.Radiobutton(units, text="Degrees", value="deg",
-                        variable=self.units_var).grid(row=0, column=0)
-        ttk.Radiobutton(units, text="Radians", value="rad",
-                        variable=self.units_var).grid(row=0, column=1)
+        ttk.Label(parent, text="Profile").grid(row=row, column=0, sticky="w")
+        self.profile_var = tk.StringVar(value=self.cfg["profile_name"])
+        self.profile_menu = ttk.Combobox(parent, textvariable=self.profile_var,
+                                         state="readonly", width=34)
+        self.profile_menu.grid(row=row, column=1, sticky="ew", pady=2)
+        self.profile_menu.bind("<<ComboboxSelected>>", self._on_profile_chosen)
         row += 1
 
-        box = ttk.LabelFrame(parent, text="Messages", padding=8)
-        box.grid(row=row, column=0, columnspan=2, sticky="ew", pady=10)
-        box.columnconfigure(1, weight=1)
-        self.addr_vars, self.enable_vars = {}, {}
-        for i, key in enumerate(P.MESSAGE_KEYS):
-            enabled = tk.BooleanVar(value=key in self.cfg["enabled"])
-            # Applies at once: a tickbox that waits for Apply reads as broken.
-            ttk.Checkbutton(box, variable=enabled,
-                            command=self._apply_enabled).grid(row=i, column=0)
-            address = tk.StringVar(value=self.cfg["addresses"][key])
-            entry = ttk.Entry(box, textvariable=address, width=26)
-            entry.grid(row=i, column=1, sticky="ew", pady=1)
+        buttons = ttk.Frame(parent)
+        buttons.grid(row=row, column=1, sticky="e", pady=(0, 8))
+        ttk.Button(buttons, text="Reload", width=9,
+                   command=self._reload_profiles).grid(row=0, column=0, padx=2)
+        ttk.Button(buttons, text="Show File", width=11,
+                   command=self._show_profiles_file).grid(row=0, column=1, padx=2)
+        row += 1
+
+        self.address_var = tk.StringVar(value=self.cfg["address"])
+        self.params_var = tk.StringVar(value=self.cfg["params"])
+        for label, var in (("OSC address", self.address_var),
+                           ("Parameters", self.params_var)):
+            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w")
+            entry = ttk.Entry(parent, textvariable=var, width=36)
+            entry.grid(row=row, column=1, sticky="ew", pady=2)
             entry.bind("<Return>", lambda _e: self._on_apply())
-            self.enable_vars[key], self.addr_vars[key] = enabled, address
+            row += 1
+
+        ttk.Label(parent, text="Destinations").grid(row=row, column=0, sticky="nw")
+        self.dest_text = tk.Text(parent, width=36, height=3, wrap="none",
+                                 font=ttk.Style().lookup("TEntry", "font"))
+        self.dest_text.grid(row=row, column=1, sticky="ew", pady=2)
+        self.dest_text.insert("1.0", self.cfg["destinations"])
         row += 1
 
-        buttons = ttk.Frame(parent)
-        buttons.grid(row=row, column=0, columnspan=2, sticky="e")
-        ttk.Button(buttons, text="Restore Nxosc Defaults",
+        ttk.Label(parent, foreground="grey", wraplength=330, justify="left",
+                  text=("/[yaw,pitch,roll] sends separate messages; /ypr sends "
+                        "one. Angles are degrees; :r radians, :1 maps to -1..1, "
+                        ":0 to 0..1. A leading - reverses, each trailing _ adds "
+                        "90\u00b0. One destination per line.")
+                  ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        row += 1
+
+        self.profile_note = ttk.Label(parent, wraplength=330, justify="left",
+                                      text="")
+        self.profile_note.grid(row=row, column=0, columnspan=2, sticky="w")
+        row += 1
+
+        apply_row = ttk.Frame(parent)
+        apply_row.grid(row=row, column=0, columnspan=2, sticky="e", pady=(8, 0))
+        ttk.Button(apply_row, text="Restore Defaults",
                    command=self._on_defaults).grid(row=0, column=0, padx=4)
-        ttk.Button(buttons, text="Apply", command=self._on_apply).grid(row=0, column=1)
-
-    def _build_transform(self, parent):
-        parent.columnconfigure(0, weight=1)
-        ttk.Label(parent, wraplength=360, justify="left", text=(
-            "Adapt the numbers to what the receiver expects. Order picks which "
-            "component goes in each slot; Invert flips the sign. Offsets apply "
-            "to angles only and wrap at \u00b1180\u00b0.")
-        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
-
-        self.order_vars, self.invert_vars, self.offset_vars = {}, {}, {}
-        self.transform_boxes = {}
-        row = 1
-        for key in P.MESSAGE_KEYS:
-            labels = P.COMPONENT_LABELS[key]
-            t = self.cfg["transforms"][key]
-            box = ttk.LabelFrame(parent, text=self.cfg["addresses"][key],
-                                 padding=8)
-            box.grid(row=row, column=0, sticky="ew", pady=4)
-            self.transform_boxes[key] = box
-            row += 1
-            inner = 0
-
-            if len(labels) > 1:
-                ttk.Label(box, text="Order").grid(row=inner, column=0, sticky="w")
-                order = tk.StringVar(value="".join(labels[i] for i in t["order"]))
-                entry = ttk.Entry(box, textvariable=order, width=10)
-                entry.grid(row=inner, column=1, sticky="w")
-                entry.bind("<Return>", lambda _e: self._on_apply())
-                ttk.Label(box, text=f"(any order of {' '.join(labels)})",
-                          foreground="grey").grid(row=inner, column=2, sticky="w",
-                                                  padx=6)
-                self.order_vars[key] = order
-                inner += 1
-
-            ttk.Label(box, text="Invert").grid(row=inner, column=0, sticky="w")
-            flags = ttk.Frame(box)
-            flags.grid(row=inner, column=1, columnspan=2, sticky="w")
-            self.invert_vars[key] = []
-            for i, label in enumerate(labels):
-                var = tk.BooleanVar(value=t["signs"][i] < 0)
-                ttk.Checkbutton(flags, text=label, variable=var,
-                                command=self._apply_transforms).grid(
-                                    row=0, column=i, padx=(0, 6))
-                self.invert_vars[key].append(var)
-            inner += 1
-
-            # Offsetting a quaternion component would break normalisation.
-            if key in P.ANGLE_KEYS:
-                ttk.Label(box, text="Offset\u00b0").grid(row=inner, column=0,
-                                                         sticky="w")
-                offs = ttk.Frame(box)
-                offs.grid(row=inner, column=1, columnspan=2, sticky="w")
-                self.offset_vars[key] = []
-                for i, _label in enumerate(labels):
-                    var = tk.StringVar(value=f"{t['offsets'][i]:g}")
-                    e = ttk.Entry(offs, textvariable=var, width=7)
-                    e.grid(row=0, column=i, padx=(0, 4))
-                    e.bind("<Return>", lambda _e: self._on_apply())
-                    self.offset_vars[key].append(var)
-                inner += 1
-
-        buttons = ttk.Frame(parent)
-        buttons.grid(row=row, column=0, sticky="e", pady=(8, 0))
-        ttk.Button(buttons, text="Reset Transforms",
-                   command=self._on_reset_transforms).grid(row=0, column=0, padx=4)
-        ttk.Button(buttons, text="Apply",
+        ttk.Button(apply_row, text="Apply",
                    command=self._on_apply).grid(row=0, column=1)
+
+        self._reload_profiles(announce=False)
+
+    # -- profiles -------------------------------------------------------
+    def _reload_profiles(self, announce=True):
+        self.profiles, errors = load_profiles()
+        names = [p.name for p in self.profiles]
+        self.profile_menu.configure(values=names)
+        if self.cfg["profile_name"] in names:
+            self.profile_var.set(self.cfg["profile_name"])
+        if errors:
+            self.profile_note.configure(
+                foreground="#b00", text="profiles.txt: " + "; ".join(errors[:3]))
+        else:
+            self.profile_note.configure(foreground="grey", text="")
+        if announce:
+            self._note(f"{len(names)} profiles loaded"
+                       + (f", {len(errors)} with errors" if errors else ""))
+
+    def _on_profile_chosen(self, _event=None):
+        chosen = next((p for p in self.profiles
+                       if p.name == self.profile_var.get()), None)
+        if chosen is None:
+            return
+        self.address_var.set(chosen.raw_address)
+        self.params_var.set(chosen.raw_params)
+        self.dest_text.delete("1.0", "end")
+        self.dest_text.insert("1.0", "\n".join(
+            f"{h} {p}" for h, p in chosen.destinations) or "local 8000")
+        self._on_apply()
+
+    def _show_profiles_file(self):
+        path = ensure_profiles_file()
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["open", "-R", path], check=False)
+            elif os.name == "nt":
+                subprocess.run(["explorer", "/select,", path], check=False)
+            else:
+                subprocess.run(["xdg-open", os.path.dirname(path)], check=False)
+        except Exception:
+            messagebox.showinfo(APP_TITLE, f"Profiles file:\n{path}")
+
+    def _current_profile(self):
+        """Build a profile from the three fields. Returns (profile, error)."""
+        destinations = self.dest_text.get("1.0", "end").strip()
+        lines = [self.profile_var.get() or "Custom",
+                 self.address_var.get().strip(),
+                 self.params_var.get().strip()]
+        lines += [d.strip() for d in destinations.splitlines() if d.strip()]
+        if len(lines) < 4:
+            return None, "Give at least one destination, such as 'local 8000'."
+        try:
+            return NP.parse_profile_block(lines), None
+        except NP.ProfileError as exc:
+            return None, str(exc)
 
     # -- actions --------------------------------------------------------
     def _on_connect(self):
@@ -493,119 +524,35 @@ class App(ttk.Frame):
         self._set_busy(True, "scanning for Nx Tracker ...")
         self.worker.scan()
 
-    def _apply_enabled(self):
-        """Ticking a box takes effect immediately -- no Apply needed."""
-        self.cfg["enabled"] = [k for k in P.MESSAGE_KEYS
-                               if self.enable_vars[k].get()]
-        save_config(self.cfg)
-        n = len(self.cfg["enabled"])
-        self._note(f"sending {n} of {len(P.MESSAGE_KEYS)} messages"
-                   if n else "all messages muted")
-
-    def _apply_transforms(self):
-        """Same for the Invert boxes."""
-        for key in P.MESSAGE_KEYS:
-            signs = [-1 if v.get() else 1 for v in self.invert_vars[key]]
-            self.cfg["transforms"][key]["signs"] = signs
-        save_config(self.cfg)
-        self._note("transform updated")
-
-    def _read_transforms(self):
-        """Parse the Order and Offset fields. Returns (transforms, error)."""
-        transforms = {}
-        for key in P.MESSAGE_KEYS:
-            labels = P.COMPONENT_LABELS[key]
-            current = self.cfg["transforms"][key]
-            order = list(current["order"])
-
-            if key in self.order_vars:
-                text = self.order_vars[key].get().replace(" ", "").lower()
-                if sorted(text) != sorted(labels):
-                    return None, (f"Order for {self.cfg['addresses'][key]} must "
-                                  f"use each of {' '.join(labels)} exactly once.")
-                order = [labels.index(ch) for ch in text]
-
-            offsets = list(current["offsets"])
-            if key in self.offset_vars:
-                offsets = []
-                for i, var in enumerate(self.offset_vars[key]):
-                    raw = var.get().strip() or "0"
-                    try:
-                        offsets.append(float(raw))
-                    except ValueError:
-                        return None, (f"Offset '{raw}' for "
-                                      f"{self.cfg['addresses'][key]} "
-                                      f"({labels[i]}) is not a number.")
-
-            transforms[key] = {
-                "order": order,
-                "signs": [-1 if v.get() else 1 for v in self.invert_vars[key]],
-                "offsets": offsets,
-            }
-        return transforms, None
-
-    def _on_reset_transforms(self):
-        self.cfg["transforms"] = P.default_transforms()
-        for key in P.MESSAGE_KEYS:
-            labels = P.COMPONENT_LABELS[key]
-            if key in self.order_vars:
-                self.order_vars[key].set("".join(labels))
-            for var in self.invert_vars[key]:
-                var.set(False)
-            for var in self.offset_vars.get(key, []):
-                var.set("0")
-        save_config(self.cfg)
-        self._note("transforms reset")
-
     def _on_recenter(self):
         self.worker.recenter()
 
     def _on_defaults(self):
-        for key in P.MESSAGE_KEYS:
-            self.addr_vars[key].set(P.DEFAULT_ADDRESSES[key])
-            self.enable_vars[key].set(True)
-        self.host_var.set("localhost")
-        self.port_var.set("8000")
-        self.units_var.set("deg")
-        self._on_reset_transforms()
+        self.profile_var.set(DEFAULT_PROFILE_NAME)
+        self.address_var.set(DEFAULT_CONFIG["address"])
+        self.params_var.set(DEFAULT_CONFIG["params"])
+        self.dest_text.delete("1.0", "end")
+        self.dest_text.insert("1.0", DEFAULT_CONFIG["destinations"])
         self._on_apply()
 
     def _on_apply(self):
-        try:
-            port = int(self.port_var.get())
-            if not 1 <= port <= 65535:
-                raise ValueError("port must be between 1 and 65535")
-        except ValueError as exc:
-            messagebox.showerror(APP_TITLE, f"Invalid port: {exc}")
-            return
-
-        addresses = {}
-        for key in P.MESSAGE_KEYS:
-            address = self.addr_vars[key].get().strip()
-            if not address.startswith("/"):
-                messagebox.showerror(
-                    APP_TITLE, f"OSC address for '{key}' must start with '/'")
-                return
-            addresses[key] = address
-
-        transforms, error = self._read_transforms()
+        profile, error = self._current_profile()
         if error:
-            messagebox.showerror(APP_TITLE, error)
+            self.profile_note.configure(foreground="#b00", text=error)
+            self._note("profile not applied")
             return
 
-        self.cfg["transforms"] = transforms
-        self.cfg["host"] = self.host_var.get().strip() or "localhost"
-        self.cfg["port"] = port
-        self.cfg["degrees"] = self.units_var.get() == "deg"
-        self.cfg["addresses"] = addresses
-        self.cfg["enabled"] = [k for k in P.MESSAGE_KEYS
-                               if self.enable_vars[k].get()]
-        for key, box in self.transform_boxes.items():
-            box.configure(text=addresses[key])
-        self.worker.rebuild_osc()
+        self.profile_note.configure(foreground="grey", text="")
+        self.cfg["profile_name"] = self.profile_var.get()
+        self.cfg["address"] = self.address_var.get().strip()
+        self.cfg["params"] = self.params_var.get().strip()
+        self.cfg["destinations"] = self.dest_text.get("1.0", "end").strip()
         save_config(self.cfg)
-        self._note(f"OSC -> {self.cfg['host']}:{self.cfg['port']}"
-                   f"  ({len(self.cfg['enabled'])} of {len(P.MESSAGE_KEYS)} messages)")
+        self.worker.set_profile(profile)
+
+        where = ", ".join(f"{h}:{p}" for h, p in profile.destinations)
+        self._note(f"{len(profile.addresses)} message"
+                   f"{'' if len(profile.addresses) == 1 else 's'} -> {where}")
 
     def _choose_device(self, devices):
         """Modal device picker, standing in for the original's Device Scan sheet."""

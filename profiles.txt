@@ -1,0 +1,48 @@
+# Profiles for NXOSC Reborn, in Supperware Bridgehead's profile.txt format:
+#   https://supperware.net/headtracker/profile-txt/
+#
+# Each profile is four or more lines -- name, OSC address, parameters,
+# then one or more destinations -- separated by a blank line.
+# Lines starting with # are comments.
+#
+#   /[a,b,c]   sends separate messages /a, /b and /c
+#   /abc       sends one message carrying all the values
+#
+# Angles are degrees by default. Suffixes: :r radians, :1 maps to -1..1,
+# :0 maps to 0..1. A leading - reverses a value. Trailing underscores add
+# 90 degrees each, so -yaw__ is reversed yaw plus 180.
+
+SceneRotator (IEM, SPARTA, degrees)
+/SceneRotator/[yaw,pitch,roll]
+yaw,pitch,roll
+local 8000
+
+Yaw/Pitch/Roll (learnable, -1 to 1)
+/[yaw,pitch,roll]
+yaw:1,pitch:1,roll:1
+local 8000
+
+Yaw/Pitch/Roll (degrees)
+/[yaw,pitch,roll]
+yaw,pitch,roll
+local 8000
+
+Composite YPR (one message, degrees)
+/ypr
+yaw,pitch,roll
+local 8000
+
+Quaternion (one message, xyzw)
+/nxosc/quaternion
+qx,qy,qz,qw
+local 8000
+
+Quaternion (one message, wxyz)
+/quaternion
+qw,qx,qy,qz
+local 8000
+
+Head orientation, radians
+/head/[yaw,pitch,roll]
+yaw:r,pitch:r,roll:r
+local 8000

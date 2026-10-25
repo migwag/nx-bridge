@@ -35,25 +35,31 @@ Euler angles, and yaw / pitch / roll -- plus the stream rate and where OSC is
 going. **Reset Center** makes your current head position the new centre; use it
 once the tracker is on your head.
 
-**OSC** sets the destination IP and port, degrees or radians, and the five
-message addresses. Unticking a message stops it being sent, straight away.
-**Restore Nxosc Defaults** puts everything back.
+**OSC** chooses what gets sent, using the same profile format as Supperware's
+[Bridgehead](https://supperware.net/headtracker/profile-txt/), so a
+`profiles.txt` written for one works in the other.
 
-**Transform** adapts the numbers to what the receiver expects:
+Pick a profile from the menu, or edit the fields directly:
 
-- **Order** -- which component goes in each slot. Receivers disagree about
-  quaternion order, so `wxyz` instead of the default `xyzw` is a common fix.
-- **Invert** -- flips the sign of a component, for receivers whose axes point
-  the other way.
-- **Offset** -- added to an angle, wrapping at +-180 degrees. Use it to trim a
-  tracker that does not sit straight, or to shift the forward direction.
+| Field | Example |
+|---|---|
+| OSC address | `/[yaw,pitch,roll]` or `/SceneRotator/[yaw,pitch,roll]` |
+| Parameters | `yaw:1,pitch:1,roll:1` |
+| Destinations | `local 8000`, one per line |
 
-Offsets apply to angles only; adding to a quaternion component would stop it
-being a unit quaternion, so the quaternion offers order and sign alone.
-**Reset Transforms** restores the identity.
+A **bracketed** address sends one message per name -- `/[yaw,pitch,roll]`
+becomes `/yaw`, `/pitch` and `/roll`, which a DAW can learn. An address with
+no brackets, like `/ypr`, sends a single message carrying all the values.
 
-Tickboxes take effect as you click them. Typed fields -- addresses, port,
-order, offsets -- apply on Enter or with the **Apply** button.
+Parameters are `yaw`, `pitch`, `roll`, or the quaternion components `qw`, `qx`,
+`qy`, `qz` -- angles or quaternion, not both. Angles are degrees unless you
+add a suffix: `:r` radians, `:1` maps to -1..1, `:0` maps to 0..1. A leading
+`-` reverses a value, and each trailing `_` adds 90 degrees, so `-yaw__` is
+reversed yaw plus 180. `0` pads an unused slot and `s:text` sends a constant
+string.
+
+**Show File** reveals your `profiles.txt`; edit it and press **Reload**. Any
+mistakes are reported in the panel rather than silently ignored.
 
 Settings are remembered between runs.
 
@@ -92,9 +98,12 @@ Angles can be switched to radians in the OSC tab.
 Only one program can hold the connection, so quit the original Nxosc first.
 
 **Nothing arrives at the receiving end.** OSC is UDP and silent on failure.
-Check the IP and port match the receiver, and that the messages you need are
-ticked in the OSC tab. If another program already listens on port 8000, point
+Check the destination matches the receiver, and that the profile sends the
+addresses it expects. If another program already listens on port 8000, point
 one of them elsewhere.
+
+**An angle moves the wrong way.** Conventions differ between tools. Put a `-`
+in front of that parameter, for instance `-yaw,pitch,roll`.
 
 **On macOS, running from source quits immediately with no message.** macOS
 requires Bluetooth permission. Either grant it to your terminal under System

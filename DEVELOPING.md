@@ -35,7 +35,9 @@ math.** CI runs it on macOS and Windows for every push.
 
 | File | Purpose |
 |---|---|
-| `nx_protocol.py` | decode and OSC mapping; pure logic, no I/O |
+| `nx_protocol.py` | packet decode; pure logic, no I/O |
+| `nx_profile.py` | Bridgehead profile.txt parsing and message building |
+| `profiles.txt` | profiles shipped with the app, seeded on first run |
 | `nxosc_reborn.py` | the GUI |
 | `nx_bridge.py` | the CLI |
 | `validate.py`, `analyze.py` | verification harnesses |
@@ -69,6 +71,33 @@ addresses are only defaults and can be renamed at runtime.
 turns xyzw into wxyz. Offsets and wrapping apply only to keys in `ANGLE_KEYS`.
 A config whose transform length no longer matches its message is discarded on
 load, so adding a component to a message cannot break an existing install.
+
+## Profiles
+
+The GUI builds its OSC output from a Supperware Bridgehead profile
+([format](https://supperware.net/headtracker/profile-txt/)), parsed by
+`nx_profile.py`. `parse_profiles()` collects errors rather than raising, so
+one bad profile does not hide the others, and the GUI shows them.
+
+The active profile is always built from the three fields in the OSC tab; the
+drop-down only fills them in. That keeps one code path whether the profile
+came from the file or was typed.
+
+On first run the shipped `profiles.txt` is copied to the config directory
+beside `config.json`, and that copy is what the app reads afterwards.
+
+Known gaps against Bridgehead:
+
+- `rx=` and `raw=` lines are parsed and ignored, so a Bridgehead file loads,
+  but incoming control messages (`/zero`, `/travel`, `/connect`) and raw
+  sensor output are not implemented.
+- Angle sign conventions are inherited from Nxosc and have not been checked
+  against a Supperware tracker. If a direction is reversed relative to
+  Bridgehead, a leading `-` on that parameter fixes it.
+
+`nx_protocol.osc_messages()` still produces the original fixed five-message
+Nxosc output. The CLI uses it and `validate.py` checks it, so the verified
+path stays verified; the GUI no longer goes through it.
 
 ## macOS Bluetooth permission
 
