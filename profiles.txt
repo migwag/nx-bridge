@@ -53,6 +53,14 @@ Composite YPR (one message, degrees)
 yaw,pitch,roll
 local 8000
 
+# Nuendo's HeadPose expects seven floats: four padding zeros, then the
+# three angles negated. "25Hz" is only a label -- the format has no rate
+# field, so set Send rate to 25 in the OSC tab.
+Nuendo (HeadPose, 25Hz)
+/head_pose
+0,0,0,0,-pitch,-yaw,-roll
+local 7000
+
 Audio Brewers
 /[yaw,pitch,roll]
 yaw:0,pitch:0,roll:0
