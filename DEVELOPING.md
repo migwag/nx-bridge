@@ -1,6 +1,6 @@
 # Developing
 
-For working on NXOSC_Reborn, building it, or distributing it. Users want
+For working on NXOSC Reborn, building it, or distributing it. Users want
 [README.md](README.md); the protocol itself is in [PROTOCOL.md](PROTOCOL.md).
 
 ## Setup
@@ -64,6 +64,12 @@ rather do your own math.
 Message *keys* are fixed because downstream tools depend on the meaning;
 addresses are only defaults and can be renamed at runtime.
 
+`apply_transform()` reorders, negates and offsets one message's values.
+`order[i]` names the source component for output slot `i`, so `[3, 0, 1, 2]`
+turns xyzw into wxyz. Offsets and wrapping apply only to keys in `ANGLE_KEYS`.
+A config whose transform length no longer matches its message is discarded on
+load, so adding a component to a message cannot break an existing install.
+
 ## macOS Bluetooth permission
 
 CoreBluetooth terminates any process without
@@ -126,9 +132,13 @@ macOS caches icons aggressively. If the Dock shows the old one after a rebuild,
 ## Building standalone apps
 
 ```
-./build_app.sh        # macOS/Linux -> dist/NXOSC_Reborn.app
+./build_app.sh        # macOS/Linux -> "dist/NXOSC Reborn.app"
 build_app.bat         # Windows     -> dist\NXOSC_Reborn\NXOSC_Reborn.exe
 ```
+
+The macOS bundle is named "NXOSC Reborn.app" with a space, since that is the
+app's name. Everything internal -- the executable inside it, the source files,
+the spec, the config directory, CI artifact names -- keeps the underscore.
 
 PyInstaller cannot cross-compile; each platform must be built on itself. CI
 (`.github/workflows/build.yml`) builds both on every push and uploads them as

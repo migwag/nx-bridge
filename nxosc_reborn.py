@@ -33,7 +33,8 @@ from pythonosc.udp_client import SimpleUDPClient
 
 import nx_protocol as P
 
-APP_NAME = "NXOSC_Reborn"
+APP_NAME = "NXOSC_Reborn"      # internal: config directory, bundle id
+APP_TITLE = "NXOSC Reborn"     # what the user sees
 UI_HZ = 20          # readout refresh; the OSC stream always runs at the full 50 Hz
 
 
@@ -76,6 +77,7 @@ DEFAULT_CONFIG = {
     "degrees": True,
     "addresses": dict(P.DEFAULT_ADDRESSES),
     "enabled": list(P.MESSAGE_KEYS),
+    "transforms": P.default_transforms(),
     "last_address": "",
 }
 
@@ -88,9 +90,16 @@ def load_config() -> dict:
         for key, value in stored.items():
             if key in cfg:
                 cfg[key] = value
-        # never let a stale file drop a message key
+        # never let a stale file drop a message key, or carry a transform
+        # whose length no longer matches the message
         for key in P.MESSAGE_KEYS:
             cfg["addresses"].setdefault(key, P.DEFAULT_ADDRESSES[key])
+            want = len(P.COMPONENT_LABELS[key])
+            t = cfg["transforms"].get(key) or {}
+            if (len(t.get("order", [])) != want
+                    or len(t.get("signs", [])) != want
+                    or len(t.get("offsets", [])) != want):
+                cfg["transforms"][key] = P.default_transform(key)
     except (OSError, ValueError):
         pass
     return cfg
@@ -266,6 +275,7 @@ class TrackerWorker:
                 addresses=self.cfg["addresses"],
                 enabled=self.cfg["enabled"],
                 degrees=self.cfg["degrees"],
+                transforms=self.cfg["transforms"],
             )
         except Exception:
             return
@@ -292,7 +302,7 @@ class App(ttk.Frame):
         self._last_time = time.monotonic()
         self._rate = 0.0
 
-        root.title(APP_NAME)
+        root.title(APP_TITLE)
         root.resizable(False, False)
         self.grid(sticky="nsew")
 
@@ -306,10 +316,13 @@ class App(ttk.Frame):
         notebook.grid(row=0, column=0, sticky="nsew")
         tracker = ttk.Frame(notebook, padding=12)
         osc = ttk.Frame(notebook, padding=12)
+        transform = ttk.Frame(notebook, padding=12)
         notebook.add(tracker, text="Tracker")
         notebook.add(osc, text="OSC")
+        notebook.add(transform, text="Transform")
         self._build_tracker(tracker)
         self._build_osc(osc)
+        self._build_transform(transform)
 
         self.status = ttk.Label(self, text="not connected", anchor="w")
         self.status.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -389,10 +402,13 @@ class App(ttk.Frame):
         self.addr_vars, self.enable_vars = {}, {}
         for i, key in enumerate(P.MESSAGE_KEYS):
             enabled = tk.BooleanVar(value=key in self.cfg["enabled"])
-            ttk.Checkbutton(box, variable=enabled).grid(row=i, column=0)
+            # Applies at once: a tickbox that waits for Apply reads as broken.
+            ttk.Checkbutton(box, variable=enabled,
+                            command=self._apply_enabled).grid(row=i, column=0)
             address = tk.StringVar(value=self.cfg["addresses"][key])
-            ttk.Entry(box, textvariable=address, width=26).grid(
-                row=i, column=1, sticky="ew", pady=1)
+            entry = ttk.Entry(box, textvariable=address, width=26)
+            entry.grid(row=i, column=1, sticky="ew", pady=1)
+            entry.bind("<Return>", lambda _e: self._on_apply())
             self.enable_vars[key], self.addr_vars[key] = enabled, address
         row += 1
 
@@ -402,6 +418,73 @@ class App(ttk.Frame):
                    command=self._on_defaults).grid(row=0, column=0, padx=4)
         ttk.Button(buttons, text="Apply", command=self._on_apply).grid(row=0, column=1)
 
+    def _build_transform(self, parent):
+        parent.columnconfigure(0, weight=1)
+        ttk.Label(parent, wraplength=360, justify="left", text=(
+            "Adapt the numbers to what the receiver expects. Order picks which "
+            "component goes in each slot; Invert flips the sign. Offsets apply "
+            "to angles only and wrap at \u00b1180\u00b0.")
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        self.order_vars, self.invert_vars, self.offset_vars = {}, {}, {}
+        self.transform_boxes = {}
+        row = 1
+        for key in P.MESSAGE_KEYS:
+            labels = P.COMPONENT_LABELS[key]
+            t = self.cfg["transforms"][key]
+            box = ttk.LabelFrame(parent, text=self.cfg["addresses"][key],
+                                 padding=8)
+            box.grid(row=row, column=0, sticky="ew", pady=4)
+            self.transform_boxes[key] = box
+            row += 1
+            inner = 0
+
+            if len(labels) > 1:
+                ttk.Label(box, text="Order").grid(row=inner, column=0, sticky="w")
+                order = tk.StringVar(value="".join(labels[i] for i in t["order"]))
+                entry = ttk.Entry(box, textvariable=order, width=10)
+                entry.grid(row=inner, column=1, sticky="w")
+                entry.bind("<Return>", lambda _e: self._on_apply())
+                ttk.Label(box, text=f"(any order of {' '.join(labels)})",
+                          foreground="grey").grid(row=inner, column=2, sticky="w",
+                                                  padx=6)
+                self.order_vars[key] = order
+                inner += 1
+
+            ttk.Label(box, text="Invert").grid(row=inner, column=0, sticky="w")
+            flags = ttk.Frame(box)
+            flags.grid(row=inner, column=1, columnspan=2, sticky="w")
+            self.invert_vars[key] = []
+            for i, label in enumerate(labels):
+                var = tk.BooleanVar(value=t["signs"][i] < 0)
+                ttk.Checkbutton(flags, text=label, variable=var,
+                                command=self._apply_transforms).grid(
+                                    row=0, column=i, padx=(0, 6))
+                self.invert_vars[key].append(var)
+            inner += 1
+
+            # Offsetting a quaternion component would break normalisation.
+            if key in P.ANGLE_KEYS:
+                ttk.Label(box, text="Offset\u00b0").grid(row=inner, column=0,
+                                                         sticky="w")
+                offs = ttk.Frame(box)
+                offs.grid(row=inner, column=1, columnspan=2, sticky="w")
+                self.offset_vars[key] = []
+                for i, _label in enumerate(labels):
+                    var = tk.StringVar(value=f"{t['offsets'][i]:g}")
+                    e = ttk.Entry(offs, textvariable=var, width=7)
+                    e.grid(row=0, column=i, padx=(0, 4))
+                    e.bind("<Return>", lambda _e: self._on_apply())
+                    self.offset_vars[key].append(var)
+                inner += 1
+
+        buttons = ttk.Frame(parent)
+        buttons.grid(row=row, column=0, sticky="e", pady=(8, 0))
+        ttk.Button(buttons, text="Reset Transforms",
+                   command=self._on_reset_transforms).grid(row=0, column=0, padx=4)
+        ttk.Button(buttons, text="Apply",
+                   command=self._on_apply).grid(row=0, column=1)
+
     # -- actions --------------------------------------------------------
     def _on_connect(self):
         if self.connected:
@@ -409,6 +492,70 @@ class App(ttk.Frame):
             return
         self._set_busy(True, "scanning for Nx Tracker ...")
         self.worker.scan()
+
+    def _apply_enabled(self):
+        """Ticking a box takes effect immediately -- no Apply needed."""
+        self.cfg["enabled"] = [k for k in P.MESSAGE_KEYS
+                               if self.enable_vars[k].get()]
+        save_config(self.cfg)
+        n = len(self.cfg["enabled"])
+        self._note(f"sending {n} of {len(P.MESSAGE_KEYS)} messages"
+                   if n else "all messages muted")
+
+    def _apply_transforms(self):
+        """Same for the Invert boxes."""
+        for key in P.MESSAGE_KEYS:
+            signs = [-1 if v.get() else 1 for v in self.invert_vars[key]]
+            self.cfg["transforms"][key]["signs"] = signs
+        save_config(self.cfg)
+        self._note("transform updated")
+
+    def _read_transforms(self):
+        """Parse the Order and Offset fields. Returns (transforms, error)."""
+        transforms = {}
+        for key in P.MESSAGE_KEYS:
+            labels = P.COMPONENT_LABELS[key]
+            current = self.cfg["transforms"][key]
+            order = list(current["order"])
+
+            if key in self.order_vars:
+                text = self.order_vars[key].get().replace(" ", "").lower()
+                if sorted(text) != sorted(labels):
+                    return None, (f"Order for {self.cfg['addresses'][key]} must "
+                                  f"use each of {' '.join(labels)} exactly once.")
+                order = [labels.index(ch) for ch in text]
+
+            offsets = list(current["offsets"])
+            if key in self.offset_vars:
+                offsets = []
+                for i, var in enumerate(self.offset_vars[key]):
+                    raw = var.get().strip() or "0"
+                    try:
+                        offsets.append(float(raw))
+                    except ValueError:
+                        return None, (f"Offset '{raw}' for "
+                                      f"{self.cfg['addresses'][key]} "
+                                      f"({labels[i]}) is not a number.")
+
+            transforms[key] = {
+                "order": order,
+                "signs": [-1 if v.get() else 1 for v in self.invert_vars[key]],
+                "offsets": offsets,
+            }
+        return transforms, None
+
+    def _on_reset_transforms(self):
+        self.cfg["transforms"] = P.default_transforms()
+        for key in P.MESSAGE_KEYS:
+            labels = P.COMPONENT_LABELS[key]
+            if key in self.order_vars:
+                self.order_vars[key].set("".join(labels))
+            for var in self.invert_vars[key]:
+                var.set(False)
+            for var in self.offset_vars.get(key, []):
+                var.set("0")
+        save_config(self.cfg)
+        self._note("transforms reset")
 
     def _on_recenter(self):
         self.worker.recenter()
@@ -420,6 +567,7 @@ class App(ttk.Frame):
         self.host_var.set("localhost")
         self.port_var.set("8000")
         self.units_var.set("deg")
+        self._on_reset_transforms()
         self._on_apply()
 
     def _on_apply(self):
@@ -428,7 +576,7 @@ class App(ttk.Frame):
             if not 1 <= port <= 65535:
                 raise ValueError("port must be between 1 and 65535")
         except ValueError as exc:
-            messagebox.showerror(APP_NAME, f"Invalid port: {exc}")
+            messagebox.showerror(APP_TITLE, f"Invalid port: {exc}")
             return
 
         addresses = {}
@@ -436,16 +584,24 @@ class App(ttk.Frame):
             address = self.addr_vars[key].get().strip()
             if not address.startswith("/"):
                 messagebox.showerror(
-                    APP_NAME, f"OSC address for '{key}' must start with '/'")
+                    APP_TITLE, f"OSC address for '{key}' must start with '/'")
                 return
             addresses[key] = address
 
+        transforms, error = self._read_transforms()
+        if error:
+            messagebox.showerror(APP_TITLE, error)
+            return
+
+        self.cfg["transforms"] = transforms
         self.cfg["host"] = self.host_var.get().strip() or "localhost"
         self.cfg["port"] = port
         self.cfg["degrees"] = self.units_var.get() == "deg"
         self.cfg["addresses"] = addresses
         self.cfg["enabled"] = [k for k in P.MESSAGE_KEYS
                                if self.enable_vars[k].get()]
+        for key, box in self.transform_boxes.items():
+            box.configure(text=addresses[key])
         self.worker.rebuild_osc()
         save_config(self.cfg)
         self._note(f"OSC -> {self.cfg['host']}:{self.cfg['port']}"

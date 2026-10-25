@@ -39,7 +39,7 @@ ICON_EXE = ICON_MAC if sys.platform == "darwin" else ICON_WIN
 DATAS = [("icon_256.png", ".")] if os.path.exists("icon_256.png") else []
 
 BLUETOOTH_REASON = (
-    "NXOSC_Reborn reads head orientation from the Waves Nx Head Tracker "
+    "NXOSC Reborn reads head orientation from the Waves Nx Head Tracker "
     "over Bluetooth LE."
 )
 
@@ -82,13 +82,13 @@ coll = COLLECT(
 )
 app = BUNDLE(
     coll,
-    name="NXOSC_Reborn.app",
+    name="NXOSC Reborn.app",
     icon=ICON_MAC,
     bundle_identifier="cc.wagner.nxoscreborn",
     version="1.0.0",
     info_plist={
-        "CFBundleName": "NXOSC_Reborn",
-        "CFBundleDisplayName": "NXOSC_Reborn",
+        "CFBundleName": "NXOSC Reborn",
+        "CFBundleDisplayName": "NXOSC Reborn",
         "CFBundleShortVersionString": "1.0.0",
         "CFBundleVersion": "1.0.0",
         "LSMinimumSystemVersion": "11.0",

@@ -1,4 +1,4 @@
-# NXOSC_Reborn
+# NXOSC Reborn
 
 Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS, Windows
 and Linux.
@@ -6,7 +6,7 @@ and Linux.
 A replacement for the macOS-only Nxosc 1.0.5. The OSC output is identical, so
 anything already listening to Nxosc keeps working with no changes.
 
-- `NXOSC_Reborn` -- the app, with a window
+- **NXOSC Reborn** -- the app, with a window
 - `nx-bridge` -- the same thing as a command-line tool
 
 ## Getting it
@@ -36,8 +36,24 @@ going. **Reset Center** makes your current head position the new centre; use it
 once the tracker is on your head.
 
 **OSC** sets the destination IP and port, degrees or radians, and the five
-message addresses. Each has a checkbox, so you can rename or switch off
-individual messages. **Restore Nxosc Defaults** puts everything back.
+message addresses. Unticking a message stops it being sent, straight away.
+**Restore Nxosc Defaults** puts everything back.
+
+**Transform** adapts the numbers to what the receiver expects:
+
+- **Order** -- which component goes in each slot. Receivers disagree about
+  quaternion order, so `wxyz` instead of the default `xyzw` is a common fix.
+- **Invert** -- flips the sign of a component, for receivers whose axes point
+  the other way.
+- **Offset** -- added to an angle, wrapping at +-180 degrees. Use it to trim a
+  tracker that does not sit straight, or to shift the forward direction.
+
+Offsets apply to angles only; adding to a quaternion component would stop it
+being a unit quaternion, so the quaternion offers order and sign alone.
+**Reset Transforms** restores the identity.
+
+Tickboxes take effect as you click them. Typed fields -- addresses, port,
+order, offsets -- apply on Enter or with the **Apply** button.
 
 Settings are remembered between runs.
 

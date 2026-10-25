@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Sign, notarise and staple dist/NXOSC_Reborn.app for distribution to other Macs.
+# Sign, notarise and staple the built app for distribution to other Macs.
 #
 # Prerequisites, both one-time and both yours to do:
 #
@@ -25,7 +25,7 @@ set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 
-APP="dist/NXOSC_Reborn.app"
+APP="dist/NXOSC Reborn.app"
 PROFILE="${PROFILE:-nxosc-notary}"
 ENTITLEMENTS="entitlements.plist"
 
