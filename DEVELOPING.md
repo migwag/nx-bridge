@@ -45,6 +45,7 @@ math.** CI runs it on macOS and Windows for every push.
 | `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
 | `build_app.sh`, `build_app.bat` | standalone builds |
 | `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing |
+| `make_icon_art.py` | draws `icon.png` from code, stdlib only |
 | `icon.png` | icon source art; `make_icons.sh` converts it |
 | `make_icons.sh` | generates the `.icns`, `.ico` and window icon |
 | `make_bundle.sh` | macOS Bluetooth wrapper for running from source |
@@ -91,7 +92,16 @@ paths.
 
 ## Icons
 
-Edit `icon.png` -- one square PNG, 1024x1024 with transparency -- then:
+The icon is drawn from source. `make_icon_art.py` renders `icon.png` using
+signed distance fields and writes the PNG by hand, so it needs nothing but the
+standard library -- edit the palette and geometry constants at the top:
+
+```
+python3 make_icon_art.py            # redraw icon.png
+```
+
+To use different artwork instead, just replace `icon.png` with any square PNG
+(1024x1024 with transparency is ideal). Either way, convert it with:
 
 ```
 ./make_icons.sh          # or: ./make_icons.sh path/to/your.png
@@ -112,8 +122,6 @@ is legal since Vista, so no image library is involved.
 
 macOS caches icons aggressively. If the Dock shows the old one after a rebuild,
 `touch dist/NXOSC_Reborn.app` or log out and back in.
-
-The current `icon.png` is a placeholder -- replace it.
 
 ## Building standalone apps
 
