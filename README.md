@@ -148,3 +148,8 @@ python nxosc_reborn.py
 
 Needs Python 3.10 or newer. There is also a command-line version,
 `nx_bridge.py`.
+
+## Licence
+
+[MIT](LICENSE). "Waves" and "Nx" are trademarks of Waves Audio Ltd, used here
+only to say what hardware this talks to.
