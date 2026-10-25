@@ -56,6 +56,34 @@ quit Nxosc first if it is running.
 | `/SceneRotator/pitch` | 1 | degrees |
 | `/SceneRotator/roll` | 1 | degrees |
 
+## Building a standalone app
+
+No Python install needed on the target machine.
+
+```
+./build_app.sh        # macOS/Linux  -> dist/NXOSC_Reborn.app
+build_app.bat         # Windows      -> dist\NXOSC_Reborn\NXOSC_Reborn.exe
+```
+
+PyInstaller **cannot cross-compile**: a Windows .exe has to be built on
+Windows. If you only have a Mac, push to GitHub and let
+`.github/workflows/build.yml` build both -- it also runs `validate.py` and
+`analyze.py`, which need no hardware, so CI verifies the protocol decode
+rather than just that it compiles.
+
+The macOS bundle is the better answer to the Bluetooth-permission problem:
+`NXOSC_Reborn.spec` writes `NSBluetoothAlwaysUsageDescription` into the app's
+own `Info.plist`, so the frozen app gets a normal permission prompt and needs
+none of the `NxTracker.app` wrapper described below.
+
+Two caveats:
+
+- The build is **ad-hoc signed**, which is fine on the machine that built it.
+  Handing it to anyone else needs a Developer ID signature and notarisation,
+  or Gatekeeper will refuse to open it. `build_app.sh` prints the commands.
+- It is built for the **architecture of the build machine**. Running on both
+  Apple Silicon and Intel needs a `universal2` Python, or one build each.
+
 ## Platform notes
 
 **macOS** will kill any process that touches CoreBluetooth without an
@@ -95,7 +123,9 @@ than a MAC address, so an `--address` value is not portable between machines.
 | `osc_listen.py` | records incoming OSC, for comparing against the original |
 | `validate.py`, `analyze.py` | verification harnesses (run with no args) |
 | `fixtures/` | captured reference data, used by the harnesses |
-| `make_bundle.sh` | builds the macOS Bluetooth-permission wrapper |
+| `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
+| `build_app.sh`, `build_app.bat` | one-shot standalone builds |
+| `make_bundle.sh` | macOS Bluetooth wrapper, for running from source |
 | `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for running under that wrapper |
 
 ## Setup
