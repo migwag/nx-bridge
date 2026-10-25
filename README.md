@@ -15,6 +15,11 @@ anything already listening to Nxosc keeps working with no changes.
 [Actions tab](../../actions) (open the newest `build` run and grab the artifact
 for your platform), or build it yourself -- see [DEVELOPING.md](DEVELOPING.md).
 
+On Windows, extract the zip on the Windows machine itself, and keep
+`NXOSC_Reborn.exe` together with the `_internal` folder beside it. Unpacking
+elsewhere and copying the folder over, or running the exe from inside the zip
+viewer, gives "Failed to load Python DLL".
+
 **Or run it from source**, with Python 3.10 or newer:
 
 ```

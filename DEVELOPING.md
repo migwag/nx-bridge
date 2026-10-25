@@ -240,6 +240,14 @@ artifacts, which is the practical way to get a Windows build from a Mac:
 gh run download -n NXOSC_Reborn-windows
 ```
 
+Move the build to Windows as a **zip, and extract it there**. Unpacking on
+macOS and copying the folder across breaks it -- the exe starts and then
+reports "Failed to load Python DLL", because something in `_internal` does
+not survive the trip. On Windows, unblock the zip first (right-click >
+Properties > Unblock) or the DLLs inside may be blocked. Running the exe
+from inside the zip viewer fails the same way, since only that one file is
+extracted and `_internal` is left behind.
+
 The spec forces bleak's backend in explicitly (`collect_submodules`, plus
 `CoreBluetooth`/`objc`/`libdispatch` on macOS and `winrt` on Windows). bleak
 selects its backend at runtime, so PyInstaller's static analysis misses it and
