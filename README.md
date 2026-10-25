@@ -5,7 +5,8 @@ Windows, and most likely Linux.
 
 ### [Download the latest release →](../../releases/latest)
 
-The Nx Head Tracker is a small Bluetooth device that clips to your headphones
+The [Nx Head Tracker](https://www.waves.com/hardware/nx-head-tracker) is a
+small Bluetooth device that clips to your headphones
 and reports which way your head is pointing. This app reads it and sends that
 orientation as OSC, so binaural and immersive tools can follow your head.
 
