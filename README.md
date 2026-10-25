@@ -1,7 +1,7 @@
 # NXOSC Reborn
 
-Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS and
-Windows.
+Head tracking from the **Waves Nx Head Tracker** to **OSC** — on macOS and
+Windows, and most likely Linux.
 
 ### [Download the latest release →](../../releases/latest)
 

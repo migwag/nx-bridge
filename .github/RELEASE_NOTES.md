@@ -1,5 +1,5 @@
-Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS and
-Windows.
+Head tracking from the **Waves Nx Head Tracker** to **OSC** — on macOS and
+Windows, and most likely Linux.
 
 Follows the Supperware/Bridgehead convention, which is the de facto standard
 for head tracking over OSC, so a `profiles.txt` moves between the two
