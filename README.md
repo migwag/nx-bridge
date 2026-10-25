@@ -79,10 +79,40 @@ none of the `NxTracker.app` wrapper described below.
 Two caveats:
 
 - The build is **ad-hoc signed**, which is fine on the machine that built it.
-  Handing it to anyone else needs a Developer ID signature and notarisation,
-  or Gatekeeper will refuse to open it. `build_app.sh` prints the commands.
+  Handing it to anyone else needs a Developer ID signature and notarisation --
+  see below.
 - It is built for the **architecture of the build machine**. Running on both
   Apple Silicon and Intel needs a `universal2` Python, or one build each.
+
+## Signing for distribution
+
+With a paid Apple Developer account, `./sign_and_notarize.sh` does the whole
+pipeline: signs every nested binary inside-out (Apple deprecates `--deep`),
+applies the hardened runtime with `entitlements.plist`, uploads to Apple,
+staples the ticket, and verifies with `spctl` the way Gatekeeper will.
+
+Two one-time setup steps are yours, because both involve your credentials:
+
+1. **Certificate.** Xcode > Settings > Accounts > Manage Certificates > + >
+   *Developer ID Application*. Check it landed:
+
+       security find-identity -v -p codesigning
+
+2. **Notarisation credentials**, stored in the keychain so no password ever
+   appears on a command line:
+
+       xcrun notarytool store-credentials "nxosc-notary" \
+         --apple-id "you@example.com" --team-id "TEAMID"
+
+   It prompts for an app-specific password from appleid.apple.com. After that
+   everything refers to the profile name, never the secret.
+
+`SKIP_NOTARIZE=1 ./sign_and_notarize.sh` signs without uploading anything.
+
+`entitlements.plist` grants `allow-unsigned-executable-memory` (CPython uses
+writable-executable memory via libffi) and `disable-library-validation`
+(PyInstaller ships ~62 libraries that are not all team-signed). Both are
+required for a frozen Python app under the hardened runtime.
 
 ## Platform notes
 
@@ -125,6 +155,7 @@ than a MAC address, so an `--address` value is not portable between machines.
 | `fixtures/` | captured reference data, used by the harnesses |
 | `NXOSC_Reborn.spec` | PyInstaller recipe, incl. the macOS `Info.plist` |
 | `build_app.sh`, `build_app.bat` | one-shot standalone builds |
+| `sign_and_notarize.sh`, `entitlements.plist` | Developer ID signing pipeline |
 | `make_bundle.sh` | macOS Bluetooth wrapper, for running from source |
 | `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for running under that wrapper |
 

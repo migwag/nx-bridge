@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- CPython allocates writable-executable memory (libffi/ctypes), which the
+       hardened runtime blocks by default. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- PyInstaller ships many .so/.dylib files; without this the hardened
+       runtime refuses to load ones not signed by the same team. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- NOTE: com.apple.security.device.bluetooth is an App Sandbox entitlement.
+       Developer ID distribution outside the App Store is not sandboxed, so it
+       is not needed here. Add it (with com.apple.security.app-sandbox) only if
+       you ever ship through the App Store. -->
+</dict>
+</plist>
