@@ -1,159 +1,150 @@
 # NXOSC Reborn
 
-Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS, Windows
-and Linux.
+Head tracking from the **Waves Nx Head Tracker** to **OSC**, on macOS and
+Windows.
 
-A replacement for the macOS-only Nxosc 1.0.5. The OSC output is identical, so
-anything already listening to Nxosc keeps working with no changes.
+### [Download the latest release →](../../releases/latest)
 
-- **NXOSC Reborn** -- the app, with a window
-- `nx-bridge` -- the same thing as a command-line tool
+The Nx Head Tracker is a small Bluetooth device that clips to your headphones
+and reports which way your head is pointing. This app reads it and sends that
+orientation as OSC, so binaural and immersive tools can follow your head.
 
-## Getting it
+It replaces the macOS-only [Nxosc](https://www.audiooo.com/) 1.0.5, which was
+last updated in 2017. The OSC output is identical, so anything already
+listening to Nxosc keeps working. Beyond that it adds Windows support, a
+profile system shared with Supperware's Bridgehead, smoothing, and a settable
+send rate.
 
-**A ready-built app**, needing no Python: download it from the
-[Actions tab](../../actions) (open the newest `build` run and grab the artifact
-for your platform), or build it yourself -- see [DEVELOPING.md](DEVELOPING.md).
+Unofficial and not affiliated with Waves Audio. The tracker's protocol is
+closed; it was reverse engineered for interoperability and is documented in
+[PROTOCOL.md](PROTOCOL.md).
 
-On Windows, extract the zip on the Windows machine itself, and keep
-`NXOSC_Reborn.exe` together with the `_internal` folder beside it. Unpacking
-elsewhere and copying the folder over, or running the exe from inside the zip
-viewer, gives "Failed to load Python DLL".
+---
 
-**Or run it from source**, with Python 3.10 or newer:
+## Install
+
+Download the zip for your platform from the
+[latest release](../../releases/latest). Nothing else is needed — Python is
+not required.
+
+### macOS
+
+Unzip and drag **NXOSC Reborn** to Applications.
+
+The app is not yet signed by an identified developer, so macOS blocks the
+first launch:
+
+1. Open it, and dismiss the warning.
+2. Go to **System Settings → Privacy & Security**.
+3. Scroll to the bottom and click **Open Anyway**.
+
+You only do this once. macOS will also ask for **Bluetooth** permission the
+first time you connect — that is required to read the tracker.
+
+### Windows
+
+Extract the zip **on the Windows machine**, not elsewhere, and keep
+`NXOSC_Reborn.exe` together with the `_internal` folder beside it. Copying
+the extracted folder from another computer, or launching the exe from inside
+the zip viewer, gives "Failed to load Python DLL".
+
+Pair the tracker in Windows Bluetooth settings first. SmartScreen may warn on
+first run: **More info → Run anyway**.
+
+---
+
+## Using it
+
+Switch the tracker on — it sleeps when idle — and make sure nothing else is
+connected to it. Then press **Connect**.
+
+The **Tracker** tab shows the device, its battery and live orientation, plus
+the stream rate and where OSC is going. **Reset Center** makes your current
+head position the new centre; use it once the tracker is on your head.
+
+On macOS the app also lives in the menu bar. Closing the window leaves it
+running and streaming, and the Dock icon disappears; the menu bar icon shows
+whether data is flowing and offers **Show Window**, **Reset Center** and
+**Quit**.
+
+### Sending to your plugin
+
+The **OSC** tab decides what gets sent. Different binauralisers expect
+different things, so you pick a profile per plugin rather than hunting for
+one universal setting. Several are included:
+
+| Profile | For |
+|---|---|
+| SceneRotator | IEM-style `/SceneRotator/yaw,pitch,roll` |
+| APL Virtuoso | `/Virtuoso/quat` |
+| Audio Brewers | `/[yaw,pitch,roll]`, 0 to 1 |
+| Nuendo (HeadPose) | `/head_pose`, seven floats |
+| Yaw/Pitch/Roll, Quaternion, … | generic starting points |
+
+Pick one from the menu, or edit the address, parameters and destination
+directly.
+
+The format is Supperware's, so a `profiles.txt` written for
+[Bridgehead](https://supperware.net/headtracker/) works here unchanged, and
+vice versa. **The syntax is documented at
+[supperware.net/headtracker/profile-txt](https://supperware.net/headtracker/profile-txt/)**
+— addresses, parameters, scaling suffixes, sign and rotation modifiers, and
+destinations.
+
+**Show File** opens your own `profiles.txt` so you can add to it; **Reload**
+re-reads it. Mistakes are reported in the panel rather than ignored.
+
+### Smoothing and send rate
+
+**Smoothing** low-passes the orientation; the figure beside it is the time
+constant in milliseconds. 40–80 ms takes the edge off without noticeable lag.
+
+**Send rate** thins the output for receivers that cannot keep up with 50 Hz —
+some plugins and DAWs cannot. `0` sends every packet. Smoothing still sees
+every packet, so a lower rate filters the data rather than dropping samples.
+
+Settings are remembered between runs.
+
+---
+
+## If something goes wrong
+
+**No tracker found.** It powers itself off when idle — wake it and try again.
+Only one program can hold the connection, so quit anything else using it.
+
+**Nothing arrives.** OSC is UDP and silent on failure. Check the destination
+matches what the receiver is listening on. If something else already has port
+8000, move one of them.
+
+**An angle moves the wrong way, or the wrong axis moves.** Conventions differ
+between plugins. Put a `-` in front of a parameter to reverse it, or reorder
+them, and save it as a profile for that plugin.
+
+**The receiver stutters.** Lower the send rate. 25 Hz, even 10 Hz, is plenty
+for head tracking.
+
+---
+
+## This is a beta
+
+It works, and the protocol decode is verified automatically on every build
+against 3628 frames recorded from the original app. But few people have run
+it, on few setups. Bug reports are welcome — please say which plugin, which
+platform, and what you expected.
+
+Known gaps: the macOS and Windows builds are unsigned, so both show a warning
+on first launch. Bridgehead's `rx=` and `raw=` lines are accepted but do
+nothing. There is no Linux build, though the source runs there.
+
+## Building it yourself
+
+See [DEVELOPING.md](DEVELOPING.md) — building, the test harnesses, the macOS
+signing pipeline, and how the protocol was worked out.
 
 ```
 pip install -r requirements.txt
 python nxosc_reborn.py
 ```
 
-## Using it
-
-Power the tracker on first -- it sleeps when idle. Make sure nothing else holds
-its Bluetooth connection; quit the original Nxosc if it is running.
-
-Press **Connect**. It finds the tracker and starts streaming. The window has
-two tabs:
-
-**Tracker** shows the device, battery level and live orientation -- quaternion,
-Euler angles, and yaw / pitch / roll -- plus the stream rate and where OSC is
-going. **Reset Center** makes your current head position the new centre; use it
-once the tracker is on your head.
-
-**OSC** chooses what gets sent, using the same profile format as Supperware's
-[Bridgehead](https://supperware.net/headtracker/profile-txt/), so a
-`profiles.txt` written for one works in the other.
-
-Pick a profile from the menu, or edit the fields directly:
-
-| Field | Example |
-|---|---|
-| OSC address | `/[yaw,pitch,roll]` or `/SceneRotator/[yaw,pitch,roll]` |
-| Parameters | `yaw:1,pitch:1,roll:1` |
-| Destinations | `local 8000`, one per line |
-
-A **bracketed** address sends one message per name -- `/[yaw,pitch,roll]`
-becomes `/yaw`, `/pitch` and `/roll`, which a DAW can learn. An address with
-no brackets, like `/ypr`, sends a single message carrying all the values.
-
-Parameters are `yaw`, `pitch`, `roll`, or the quaternion components `qw`, `qx`,
-`qy`, `qz` -- angles or quaternion, not both. Angles are degrees unless you
-add a suffix: `:r` radians, `:1` maps to -1..1, `:0` maps to 0..1. A leading
-`-` reverses a value, and each trailing `_` adds 90 degrees, so `-yaw__` is
-reversed yaw plus 180. `0` pads an unused slot and `s:text` sends a constant
-string.
-
-**Smoothing** low-passes the orientation. The figure beside it is the time
-constant in milliseconds: larger is smoother but lags more. 40-80 ms takes the
-edge off without being noticeable; above about 200 ms the lag is obvious.
-
-**Send rate** thins the output for receivers that cannot keep up with 50 Hz.
-`0` sends every packet. Smoothing still runs on every packet, so lowering the
-rate filters the data rather than just dropping samples.
-
-**Show File** reveals your `profiles.txt`; edit it and press **Reload**. Any
-mistakes are reported in the panel rather than silently ignored.
-
-Settings are remembered between runs.
-
-### Menu bar (macOS)
-
-The app puts an icon in the menu bar. Closing the window leaves it running
-there, still streaming, and the Dock icon disappears -- so it behaves like
-the background utility it is rather than something you have to keep on screen.
-
-The menu shows the current state and offers **Show Window**, **Reset Center**
-and **Quit**. Reopening the window brings the Dock icon back.
-
-Quitting is the only thing that stops it. On Windows and Linux there is no
-menu bar extra, and closing the window quits, as those platforms expect.
-
-### Command line
-
-```
-python nx_bridge.py                             # localhost:8000, as Nxosc
-python nx_bridge.py --list                       # list nearby trackers
-python nx_bridge.py --host 10.0.0.5 --port 9000
-python nx_bridge.py --recenter                   # reset centre on connect
-```
-
-`--help` lists the rest. Ctrl-C to stop.
-
-## OSC output
-
-50 Hz, five messages per frame, all float32 -- the same as Nxosc 1.0.5:
-
-| Address | Values | Meaning |
-|---|---|---|
-| `/nxosc/quaternion` | 4 | x, y, z, w -- a unit quaternion |
-| `/nxosc/xyz` | 3 | Euler angles, degrees |
-| `/SceneRotator/yaw` | 1 | degrees |
-| `/SceneRotator/pitch` | 1 | degrees |
-| `/SceneRotator/roll` | 1 | degrees |
-
-`/SceneRotator/*` follows the IEM SceneRotator convention, which is what
-SceneRotator-compatible binauralisers and rotators expect. Because the output
-matches Nxosc exactly, anything that worked with Nxosc works here.
-
-Angles can be switched to radians in the OSC tab.
-
-## If something goes wrong
-
-**No tracker found.** It powers itself off when idle -- wake it and try again.
-Only one program can hold the connection, so quit the original Nxosc first.
-
-**Nothing arrives at the receiving end.** OSC is UDP and silent on failure.
-Check the destination matches the receiver, and that the profile sends the
-addresses it expects. If another program already listens on port 8000, point
-one of them elsewhere.
-
-**The receiver stutters or falls behind.** Lower **Send rate** -- 25 Hz or even
-10 Hz is plenty for head tracking, and some plugins and DAWs cannot absorb 50
-messages a second per parameter.
-
-**The output looks jittery.** Tick **Smoothing**. The tracker is steady at rest,
-so visible jitter usually means a receiver resolving small movements sharply.
-
-**An angle moves the wrong way, or the wrong axis moves.** Binauralisers
-disagree about orientation conventions -- there is no single correct one, and
-a profile that suits one plugin can be wrong for another. Reverse a value with
-a leading `-`, or reorder the parameters. Keep a profile per plugin; the
-shipped file has one for APL Virtuoso as an example.
-
-**On macOS, running from source quits immediately with no message.** macOS
-requires Bluetooth permission. Either grant it to your terminal under System
-Settings > Privacy & Security > Bluetooth, or use the built app, which asks for
-permission normally. ([DEVELOPING.md](DEVELOPING.md) has a third option.)
-
-**A tracker address from one computer does not work on another.** macOS
-identifies Bluetooth devices with a per-machine ID, so `--address` values are
-not portable. Leave it out and let it scan.
-
-## More
-
-- [PROTOCOL.md](PROTOCOL.md) -- the tracker's Bluetooth protocol, documented
-- [DEVELOPING.md](DEVELOPING.md) -- building, testing, signing, extending
-
-The protocol is closed and undocumented; it was reverse engineered for
-interoperability and checked against the original across 3628 recorded frames,
-which it reproduces to within 8e-6 degrees.
+Needs Python 3.10 or newer. There is also a command-line version,
+`nx_bridge.py`.

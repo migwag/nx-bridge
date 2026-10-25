@@ -1,9 +1,12 @@
 name: build
 
 # Builds standalone apps for macOS and Windows. PyInstaller cannot
-# cross-compile, so each runs on its own OS. validate.py needs no hardware,
-# which means CI can actually verify the protocol decode, not just that it
+# cross-compile, so each runs on its own OS. validate.py and analyze.py need
+# no hardware, so CI verifies the protocol decode rather than just that it
 # compiles.
+#
+# Pushing a tag like v0.9.0 also publishes a Release with both builds
+# attached.
 
 on:
   push:
@@ -19,9 +22,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: NXOSC_Reborn-macos
+            artifact: NXOSC-Reborn-macOS
           - os: windows-latest
-            artifact: NXOSC_Reborn-windows
+            artifact: NXOSC-Reborn-Windows
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +46,41 @@ jobs:
       - name: Build
         run: pyinstaller --noconfirm --clean NXOSC_Reborn.spec
 
+      # Archive on the build machine. actions/upload-artifact does not keep
+      # the executable bit or symlinks, which would quietly break a macOS
+      # .app; ditto preserves both.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent "dist/NXOSC Reborn.app" "${{ matrix.artifact }}.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/NXOSC_Reborn -DestinationPath "${{ matrix.artifact }}.zip"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/
+          path: ${{ matrix.artifact }}.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -lh downloaded
+          gh release create "${GITHUB_REF_NAME}" downloaded/*.zip \
+            --title "NXOSC Reborn ${GITHUB_REF_NAME}" \
+            --notes-file .github/RELEASE_NOTES.md \
+            --prerelease
