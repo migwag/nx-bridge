@@ -1,6 +1,7 @@
-# nx-bridge
+# nx-bridge / NXOSC_Reborn
 
-Waves Nx Head Tracker to OSC, on **macOS, Windows and Linux**.
+Waves Nx Head Tracker to OSC, on **macOS, Windows and Linux** -- as a GUI
+(`NXOSC_Reborn`) or a CLI (`nx-bridge`).
 
 A maintainable replacement for the macOS-only [Nxosc](https://www.audiooo.com/)
 1.0.5. The OSC output is byte-for-byte compatible with the original, so
@@ -12,7 +13,26 @@ anything already listening to Nxosc works unchanged.
 pip install -r requirements.txt
 ```
 
-## Use
+## Use -- GUI
+
+```
+python nxosc_reborn.py
+```
+
+Two tabs, following the original Nxosc layout:
+
+- **Tracker** -- Connect/Disconnect, device and battery, live quaternion,
+  Euler xyz and yaw/pitch/roll readouts, and **Reset Center** (the original's
+  name for recentering). A status line shows the stream rate and destination.
+- **OSC** -- OSC IP and port, degrees or radians, and a per-message row with a
+  checkbox and an editable address, so you can rename or mute any of the five
+  messages. **Restore Nxosc Defaults** puts everything back to byte-compatible
+  output. Settings persist between runs.
+
+Press Connect and it scans; with one tracker in range it connects straight
+away, with several it offers a picker (the original's "Device Scan" sheet).
+
+## Use -- CLI
 
 ```
 python nx_bridge.py --list                      # find the tracker
@@ -48,6 +68,7 @@ quit Nxosc first if it is running.
   builds one from the python.org `Python.app` stub:
 
       ./make_bundle.sh
+      open -a "$PWD/NxTracker.app" --args "$PWD/gui_run.py"            # GUI
       open -a "$PWD/NxTracker.app" --args "$PWD/bridge_run.py" --port 8000
 
   Output goes to `bridge.log`, since a bundle launched this way has no terminal.
@@ -67,6 +88,7 @@ than a MAC address, so an `--address` value is not portable between machines.
 | File | Purpose |
 |---|---|
 | `nx_protocol.py` | pure decode logic, no I/O -- the reusable core |
+| `nxosc_reborn.py` | the GUI |
 | `nx_bridge.py` | CLI: BLE in, OSC out |
 | `PROTOCOL.md` | full protocol documentation and how it was derived |
 | `scan.py`, `gatt.py`, `capture.py` | the reverse-engineering tools |
@@ -74,7 +96,7 @@ than a MAC address, so an `--address` value is not portable between machines.
 | `validate.py`, `analyze.py` | verification harnesses (run with no args) |
 | `fixtures/` | captured reference data, used by the harnesses |
 | `make_bundle.sh` | builds the macOS Bluetooth-permission wrapper |
-| `nxboot.py`, `bridge_run.py` | glue for running under that wrapper |
+| `nxboot.py`, `bridge_run.py`, `gui_run.py` | glue for running under that wrapper |
 
 ## Setup
 
@@ -93,9 +115,10 @@ Check it works without any hardware:
 
 ## Extending
 
-`nx_protocol.osc_messages()` is the single place that decides what goes out.
-Add an address, change a convention, or apply smoothing there and both the CLI
-and anything else importing the module pick it up. `decode_packet()` hands you
+`nx_protocol.osc_messages()` is the single place that decides what goes out,
+and `compute()` returns every derived value so callers never repeat the math.
+Add an address, change a convention, or apply smoothing there and the GUI, the
+CLI and anything else importing the module all pick it up. `decode_packet()` hands you
 the raw unit quaternion if you would rather do your own math.
 
 ## Provenance

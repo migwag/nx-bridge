@@ -92,15 +92,58 @@ def battery_percent(raw: int):
 
 DEG = 180.0 / math.pi
 
-def osc_messages(buf):
-    """10 raw bytes -> list of (address, [args]) exactly as Nxosc 1.0.5 emits them."""
-    a, b, c, w, _, _ = decode_packet(buf)
+# Message identities, in the order Nxosc 1.0.5 sends them. The addresses are
+# defaults -- callers may rename them -- but the keys and the value each key
+# carries are fixed, because downstream tools key off the meaning.
+MESSAGE_KEYS = ("quaternion", "xyz", "yaw", "pitch", "roll")
+
+DEFAULT_ADDRESSES = {
+    "quaternion": "/nxosc/quaternion",
+    "xyz":        "/nxosc/xyz",
+    "yaw":        "/SceneRotator/yaw",
+    "pitch":      "/SceneRotator/pitch",
+    "roll":       "/SceneRotator/roll",
+}
+
+
+def compute(buf):
+    """10 raw bytes -> every derived value, so callers need not repeat the math.
+
+    Angles are radians here; convert at the edge.
+    """
+    a, b, c, w, status0, status1 = decode_packet(buf)
     e4 = euler_mode4(a, b, c, w)
     e6 = euler_mode6(a, b, c, w)
-    return [
-        ("/nxosc/quaternion",   [a, b, c, w]),
-        ("/nxosc/xyz",          [e6[0] * DEG, e6[2] * DEG, e6[1] * DEG]),
-        ("/SceneRotator/yaw",   [ e4[2] * DEG]),
-        ("/SceneRotator/pitch", [-e4[1] * DEG]),
-        ("/SceneRotator/roll",  [-e4[0] * DEG]),
-    ]
+    return {
+        "quaternion": (a, b, c, w),
+        "xyz":   (e6[0], e6[2], e6[1]),
+        "yaw":    e4[2],
+        "pitch": -e4[1],
+        "roll":  -e4[0],
+        "status": (status0, status1),
+    }
+
+
+def osc_messages(buf, addresses=None, enabled=None, degrees=True):
+    """10 raw bytes -> list of (address, [args]).
+
+    With no arguments the output is exactly what Nxosc 1.0.5 emits. Pass
+    `addresses` to rename messages, `enabled` (an iterable of keys) to send
+    only some of them, or degrees=False to send angles in radians.
+    """
+    v = compute(buf)
+    addr = dict(DEFAULT_ADDRESSES)
+    if addresses:
+        addr.update(addresses)
+    keep = MESSAGE_KEYS if enabled is None else tuple(
+        k for k in MESSAGE_KEYS if k in set(enabled))
+    scale = DEG if degrees else 1.0
+
+    args = {
+        "quaternion": list(v["quaternion"]),
+        "xyz":        [x * scale for x in v["xyz"]],
+        "yaw":        [v["yaw"] * scale],
+        "pitch":      [v["pitch"] * scale],
+        "roll":       [v["roll"] * scale],
+    }
+    return [(addr[k], args[k]) for k in keep]
