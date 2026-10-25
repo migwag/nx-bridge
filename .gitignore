@@ -1,0 +1,11 @@
+# regenerate with ./make_bundle.sh -- embeds a version-specific interpreter
+NxTracker.app/
+.venv/
+__pycache__/
+*.pyc
+
+# transient capture + run output
+*.log
+raw_*.txt
+osc_recv.jsonl
+bridge_recv.jsonl
