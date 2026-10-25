@@ -58,6 +58,14 @@ add a suffix: `:r` radians, `:1` maps to -1..1, `:0` maps to 0..1. A leading
 reversed yaw plus 180. `0` pads an unused slot and `s:text` sends a constant
 string.
 
+**Smoothing** low-passes the orientation. The figure beside it is the time
+constant in milliseconds: larger is smoother but lags more. 40-80 ms takes the
+edge off without being noticeable; above about 200 ms the lag is obvious.
+
+**Send rate** thins the output for receivers that cannot keep up with 50 Hz.
+`0` sends every packet. Smoothing still runs on every packet, so lowering the
+rate filters the data rather than just dropping samples.
+
 **Show File** reveals your `profiles.txt`; edit it and press **Reload**. Any
 mistakes are reported in the panel rather than silently ignored.
 
@@ -101,6 +109,13 @@ Only one program can hold the connection, so quit the original Nxosc first.
 Check the destination matches the receiver, and that the profile sends the
 addresses it expects. If another program already listens on port 8000, point
 one of them elsewhere.
+
+**The receiver stutters or falls behind.** Lower **Send rate** -- 25 Hz or even
+10 Hz is plenty for head tracking, and some plugins and DAWs cannot absorb 50
+messages a second per parameter.
+
+**The output looks jittery.** Tick **Smoothing**. The tracker is steady at rest,
+so visible jitter usually means a receiver resolving small movements sharply.
 
 **An angle moves the wrong way.** Conventions differ between tools. Put a `-`
 in front of that parameter, for instance `-yaw,pitch,roll`.

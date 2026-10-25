@@ -106,12 +106,8 @@ DEFAULT_ADDRESSES = {
 }
 
 
-def compute(buf):
-    """10 raw bytes -> every derived value, so callers need not repeat the math.
-
-    Angles are radians here; convert at the edge.
-    """
-    a, b, c, w, status0, status1 = decode_packet(buf)
+def derive(a, b, c, w):
+    """Quaternion -> every value we expose. Angles in radians."""
     e4 = euler_mode4(a, b, c, w)
     e6 = euler_mode6(a, b, c, w)
     return {
@@ -120,22 +116,82 @@ def compute(buf):
         "yaw":    e4[2],
         "pitch": -e4[1],
         "roll":  -e4[0],
-        "status": (status0, status1),
+    }
+
+
+def compute(buf):
+    """10 raw bytes -> every derived value, so callers need not repeat the math.
+
+    Angles are radians here; convert at the edge.
+    """
+    a, b, c, w, status0, status1 = decode_packet(buf)
+    values = derive(a, b, c, w)
+    values["status"] = (status0, status1)
+    return values
+
+
+def profile_values_from(values):
+    """Derived values -> the names a Bridgehead profile can reference."""
+    x, y, z, w = values["quaternion"]
+    return {
+        "yaw": values["yaw"], "pitch": values["pitch"], "roll": values["roll"],
+        "qw": w, "qx": x, "qy": y, "qz": z,
     }
 
 
 def profile_values(buf):
-    """10 raw bytes -> the named values a Bridgehead profile can reference.
+    """10 raw bytes -> the named values a Bridgehead profile can reference."""
+    return profile_values_from(compute(buf))
 
-    Angles are radians here; the profile applies its own scaling. Quaternion
-    components use Bridgehead's names, mapped from our output frame.
+
+class Smoother:
+    """Exponential low-pass on the quaternion.
+
+    Angles are smoothed through the quaternion rather than individually:
+    filtering yaw as a number would swing it the long way round whenever it
+    crosses +-180 degrees. Blending is normalised lerp, which is close enough
+    to slerp at the small step a 50 Hz stream produces and much cheaper.
+
+    `tau` is the time constant in seconds: after tau, roughly 63% of a step
+    change has been followed. Zero disables smoothing.
     """
-    v = compute(buf)
-    x, y, z, w = v["quaternion"]
-    return {
-        "yaw": v["yaw"], "pitch": v["pitch"], "roll": v["roll"],
-        "qw": w, "qx": x, "qy": y, "qz": z,
-    }
+
+    def __init__(self, tau=0.0):
+        self.tau = max(0.0, float(tau))
+        self._state = None
+        self._last = None
+
+    def reset(self):
+        self._state = None
+        self._last = None
+
+    def push(self, quat, now):
+        if self.tau <= 0.0:
+            self._state = quat
+            self._last = now
+            return quat
+        if self._state is None or self._last is None or now <= self._last:
+            self._state = quat
+            self._last = now
+            return quat
+
+        dt = now - self._last
+        self._last = now
+        alpha = 1.0 - math.exp(-dt / self.tau)
+
+        prev = self._state
+        # q and -q are the same rotation; without this the filter can take
+        # the long way round and lurch.
+        if sum(p * c for p, c in zip(prev, quat)) < 0.0:
+            quat = tuple(-c for c in quat)
+
+        blended = tuple(p + (c - p) * alpha for p, c in zip(prev, quat))
+        norm = math.sqrt(sum(c * c for c in blended))
+        if norm < 1e-9:
+            self._state = quat
+            return quat
+        self._state = tuple(c / norm for c in blended)
+        return self._state
 
 
 def osc_messages(buf, addresses=None, enabled=None, degrees=True):

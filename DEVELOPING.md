@@ -99,6 +99,27 @@ Known gaps against Bridgehead:
 Nxosc output. The CLI uses it and `validate.py` checks it, so the verified
 path stays verified; the GUI no longer goes through it.
 
+## Smoothing and send rate
+
+`nx_protocol.Smoother` low-passes the **quaternion**, not the angles.
+Filtering yaw as a number would swing it the long way round whenever it
+crosses +-180 degrees; filtering the quaternion avoids that and smooths every
+derived value consistently. It blends with normalised lerp -- close enough to
+slerp at a 50 Hz step, and far cheaper -- and flips the sign of the incoming
+quaternion when the dot product is negative, since q and -q are the same
+rotation and the filter would otherwise lurch the long way.
+
+`tau` is the time constant in seconds; zero is a pass-through. One tau follows
+about 63% of a step, which the tests assert.
+
+The send rate thins only the sending. The filter sees every packet, so a lower
+rate low-passes the data instead of aliasing it. Both live on the worker, set
+through `set_output()`.
+
+These are app settings rather than profile fields: Bridgehead's format has no
+place for them, and inventing one would mean our profiles.txt no longer loaded
+in Bridgehead.
+
 ## macOS Bluetooth permission
 
 CoreBluetooth terminates any process without

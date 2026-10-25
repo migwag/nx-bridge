@@ -83,6 +83,9 @@ DEFAULT_CONFIG = {
     "address": "/SceneRotator/[yaw,pitch,roll]",
     "params": "yaw,pitch,roll",
     "destinations": "local 8000",
+    "smoothing": False,
+    "smoothing_ms": 60.0,
+    "send_rate": 0.0,          # 0 = send every packet (50 Hz)
     "last_address": "",
 }
 
@@ -160,6 +163,10 @@ class TrackerWorker:
         self._client: BleakClient | None = None
         self.profile = None
         self._clients: list = []
+        self.smoother = P.Smoother(0.0)
+        self.min_interval = 0.0      # 0 means send every packet
+        self.sent = 0
+        self._last_send = 0.0
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -174,6 +181,13 @@ class TrackerWorker:
 
     def _post(self, kind, payload=None):
         self.events.put((kind, payload))
+
+    def set_output(self, smoothing_tau, send_rate):
+        """Smoothing time constant in seconds, send rate in Hz (0 = every packet)."""
+        if smoothing_tau != self.smoother.tau:
+            self.smoother.tau = max(0.0, smoothing_tau)
+            self.smoother.reset()
+        self.min_interval = (1.0 / send_rate) if send_rate and send_rate > 0 else 0.0
 
     def set_profile(self, profile):
         """Swap in a parsed profile and open a socket per destination."""
@@ -255,6 +269,9 @@ class TrackerWorker:
             pass
 
         self.frames = 0
+        self.sent = 0
+        self._last_send = 0.0
+        self.smoother.reset()
         try:
             await client.start_notify(P.CHAR_DATA, self._on_packet)
             await client.write_gatt_char(P.CHAR_CONTROL, P.CMD_START, response=True)
@@ -300,13 +317,29 @@ class TrackerWorker:
     def _on_packet(self, _handle, data: bytearray):
         if len(data) != P.PACKET_LEN:
             return
-        profile = self.profile
+        now = time.monotonic()
         try:
-            values = P.compute(bytes(data))
-            if profile is not None:
-                outgoing = profile.messages(P.profile_values(bytes(data)))
-            else:
-                outgoing = ()
+            a, b, c, w, _s0, _s1 = P.decode_packet(bytes(data))
+            if self.smoother.tau > 0.0:
+                a, b, c, w = self.smoother.push((a, b, c, w), now)
+            values = P.derive(a, b, c, w)
+        except Exception:
+            return
+
+        self.frames += 1
+        self.latest = values
+
+        # The filter still sees every packet; only sending is thinned, so
+        # reducing the rate does not turn smoothing into aliasing.
+        if self.min_interval and (now - self._last_send) < self.min_interval:
+            return
+        self._last_send = now
+
+        profile = self.profile
+        if profile is None:
+            return
+        try:
+            outgoing = profile.messages(P.profile_values_from(values))
         except Exception:
             return
         for client in self._clients:
@@ -315,8 +348,7 @@ class TrackerWorker:
                     client.send_message(address, args)
             except Exception:
                 pass
-        self.frames += 1
-        self.latest = values
+        self.sent += 1
 
 
 # --------------------------------------------------------------------- GUI
@@ -332,6 +364,7 @@ class App(ttk.Frame):
         self._last_time = time.monotonic()
         self._rate = 0.0
         self._dest_summary = ""
+        self._stream_start = time.monotonic()
 
         root.title(APP_TITLE)
         root.resizable(False, False)
@@ -442,6 +475,34 @@ class App(ttk.Frame):
         self.dest_text.insert("1.0", self.cfg["destinations"])
         row += 1
 
+        output = ttk.Frame(parent)
+        output.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self.smooth_var = tk.BooleanVar(value=bool(self.cfg["smoothing"]))
+        ttk.Checkbutton(output, text="Smoothing", variable=self.smooth_var,
+                        command=self._apply_output).grid(row=0, column=0,
+                                                         sticky="w")
+        self.smooth_ms_var = tk.StringVar(value=f"{self.cfg['smoothing_ms']:g}")
+        e = ttk.Entry(output, textvariable=self.smooth_ms_var, width=6)
+        e.grid(row=0, column=1, padx=(6, 2))
+        e.bind("<Return>", lambda _ev: self._apply_output())
+        ttk.Label(output, text="ms").grid(row=0, column=2, sticky="w")
+
+        ttk.Label(output, text="Send rate").grid(row=0, column=3, sticky="e",
+                                                 padx=(18, 0))
+        self.rate_var = tk.StringVar(value=f"{self.cfg['send_rate']:g}")
+        e = ttk.Entry(output, textvariable=self.rate_var, width=6)
+        e.grid(row=0, column=4, padx=(6, 2))
+        e.bind("<Return>", lambda _ev: self._apply_output())
+        ttk.Label(output, text="Hz").grid(row=0, column=5, sticky="w")
+        row += 1
+
+        ttk.Label(parent, foreground="grey", wraplength=330, justify="left",
+                  text=("Send rate 0 means every packet (50 Hz); set it lower "
+                        "for receivers that cannot keep up. Smoothing still "
+                        "sees every packet.")
+                  ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        row += 1
+
         ttk.Label(parent, foreground="grey", wraplength=330, justify="left",
                   text=("/[yaw,pitch,roll] sends separate messages; /ypr sends "
                         "one. Angles are degrees; :r radians, :1 maps to -1..1, "
@@ -463,6 +524,38 @@ class App(ttk.Frame):
                    command=self._on_apply).grid(row=0, column=1)
 
         self._reload_profiles(announce=False)
+
+    def _apply_output(self):
+        """Smoothing and send rate -- the tickbox takes effect at once."""
+        def number(var, name, default, lo, hi):
+            text = var.get().strip()
+            if not text:
+                return default
+            try:
+                value = float(text)
+            except ValueError:
+                raise ValueError(f"{name} '{text}' is not a number")
+            if not lo <= value <= hi:
+                raise ValueError(f"{name} must be between {lo:g} and {hi:g}")
+            return value
+
+        try:
+            ms = number(self.smooth_ms_var, "Smoothing", 60.0, 0.0, 5000.0)
+            rate = number(self.rate_var, "Send rate", 0.0, 0.0, 200.0)
+        except ValueError as exc:
+            self.profile_note.configure(foreground="#b00", text=str(exc))
+            return
+
+        self.cfg["smoothing"] = bool(self.smooth_var.get())
+        self.cfg["smoothing_ms"] = ms
+        self.cfg["send_rate"] = rate
+        save_config(self.cfg)
+        self.worker.set_output(ms / 1000.0 if self.cfg["smoothing"] else 0.0,
+                               rate)
+        self.profile_note.configure(foreground="grey", text="")
+        self._note(("smoothing %gms" % ms if self.cfg["smoothing"]
+                    else "smoothing off")
+                   + (f", sending at {rate:g} Hz" if rate else ", every packet"))
 
     # -- profiles -------------------------------------------------------
     def _reload_profiles(self, announce=True):
@@ -550,6 +643,7 @@ class App(ttk.Frame):
         self.cfg["params"] = self.params_var.get().strip()
         self.cfg["destinations"] = self.dest_text.get("1.0", "end").strip()
         save_config(self.cfg)
+        self._apply_output()
         self.worker.set_profile(profile)
 
         where = ", ".join(f"{h}:{p}" for h, p in profile.destinations)
@@ -649,7 +743,11 @@ class App(ttk.Frame):
                 self._rate = (instant if self._rate == 0.0
                               else self._rate * 0.8 + instant * 0.2)
             self._last_frames, self._last_time = self.worker.frames, now
-            self._note(f"streaming   {self._rate:.1f} Hz   "
+            elapsed_total = max(now - self._stream_start, 1e-9)
+            out = ""
+            if self.worker.min_interval:
+                out = f" / {self.worker.sent / max(elapsed_total, 1e-9):.0f} Hz out"
+            self._note(f"streaming   {self._rate:.1f} Hz{out}   "
                        f"frames {self.worker.frames}   "
                        f"OSC -> {self._dest_summary}")
 
@@ -677,6 +775,7 @@ class App(ttk.Frame):
             self.connected = True
             self._last_frames = self.worker.frames
             self._last_time = time.monotonic()
+            self._stream_start = self._last_time
             self._rate = 0.0
             self.cfg["last_address"] = payload["address"]
             save_config(self.cfg)
