@@ -130,13 +130,51 @@ def compute(buf):
     return values
 
 
+def bridgehead_quaternion(a, b, c, w):
+    """Our component frame -> Supperware Bridgehead's.
+
+    Fixed empirically: in Bridgehead the parameter line
+
+        qw,qy,-qx,qz
+
+    produces the same output as our old naming's
+
+        qw,-qz,-qx,qy
+
+    Equating them term by term gives qw = w, qx = a, qy = -c, qz = b, i.e.
+    our y and z are swapped with a sign flip -- the usual Z-up against Y-up
+    difference.
+    """
+    return w, a, -c, b
+
+
+def bridgehead_angles(qw, qx, qy, qz):
+    """Yaw/pitch/roll from a Bridgehead-frame quaternion, in radians.
+
+    The standard intrinsic Z-Y-X decomposition, which gives Bridgehead's
+    documented directions: yaw anticlockwise positive, pitch upward
+    positive, roll clockwise positive.
+    """
+    yaw = math.atan2(2.0 * (qw * qz + qx * qy),
+                     1.0 - 2.0 * (qy * qy + qz * qz))
+    pitch = math.asin(max(-1.0, min(1.0, 2.0 * (qw * qy - qz * qx))))
+    roll = math.atan2(2.0 * (qw * qx + qy * qz),
+                      1.0 - 2.0 * (qx * qx + qy * qy))
+    return yaw, pitch, roll
+
+
 def profile_values_from(values):
-    """Derived values -> the names a Bridgehead profile can reference."""
-    x, y, z, w = values["quaternion"]
-    return {
-        "yaw": values["yaw"], "pitch": values["pitch"], "roll": values["roll"],
-        "qw": w, "qx": x, "qy": y, "qz": z,
-    }
+    """Derived values -> the names a Bridgehead profile can reference.
+
+    Everything here is in Bridgehead's frame, so a profile written for
+    Bridgehead behaves the same in both applications. The Nxosc-compatible
+    output lives in osc_messages() and is unaffected.
+    """
+    a, b, c, w = values["quaternion"]
+    qw, qx, qy, qz = bridgehead_quaternion(a, b, c, w)
+    yaw, pitch, roll = bridgehead_angles(qw, qx, qy, qz)
+    return {"yaw": yaw, "pitch": pitch, "roll": roll,
+            "qw": qw, "qx": qx, "qy": qy, "qz": qz}
 
 
 def profile_values(buf):

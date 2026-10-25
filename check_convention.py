@@ -64,7 +64,8 @@ class Collector:
         if not self.recording or len(data) != P.PACKET_LEN:
             return
         a, b, c, w, _s0, _s1 = P.decode_packet(bytes(data))
-        self.samples.append(P.derive(a, b, c, w))
+        # measure what profiles actually send, i.e. the Bridgehead frame
+        self.samples.append(P.profile_values_from(P.derive(a, b, c, w)))
 
     async def capture(self, seconds):
         self.samples.clear()

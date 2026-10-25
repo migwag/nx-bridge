@@ -54,11 +54,18 @@ yaw,pitch,roll
 local 8000
 
 Quaternion xyzw (one message)
-/nxosc/quaternion
+/quaternion
 qx,qy,qz,qw
 local 8000
 
 Quaternion wxyz (one message)
 /quaternion
 qw,qx,qy,qz
+local 8000
+
+# Reproduces the component order the original Nxosc 1.0.5 sent, for setups
+# built around it. The reordering is what Bridgehead's naming requires.
+Nxosc 1.0.5 quaternion (legacy)
+/nxosc/quaternion
+qx,qz,-qy,qw
 local 8000
