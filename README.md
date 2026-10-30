@@ -201,11 +201,11 @@ This project exists because of
 [Katsuhiro Chiba](https://www.audiooo.com/), which solved this problem first
 and solved it well. It worked reliably for years and asked nothing of anyone.
 
-NXOSC Reborn was written because Nxosc is macOS-only, not because anything is
-wrong with it -- it is still maintained, with 1.0.5 built in January 2025. Its
-behaviour is the reference this was built against: the test fixtures here are
-recordings of Nxosc's own output, and every build is still checked against
-them.
+NXOSC Reborn covers ground Nxosc does not: it runs on Windows, and it is built
+to be installed without a fight. That is why it exists -- not any shortcoming
+in the original, whose behaviour is the reference this was built against. The
+test fixtures here are recordings of Nxosc's own output, and every build is
+still checked against them.
 
 The name is a nod, not a claim. This is an independent project and is not
 affiliated with Katsuhiro Chiba.
