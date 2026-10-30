@@ -7,6 +7,14 @@ applications unchanged. Coming from Nxosc 1.0.5, note that yaw and pitch run
 the opposite way and quaternion components are named Supperware's way — the
 README explains how to get the old behaviour back.
 
+### What's new in 0.9.1
+
+**Recentre from other software.** Add `rx=9010` to your `profiles.txt` and
+the app listens for OSC `/zero` to reset centre, or `/connect` with `1`, `0`
+or no argument. It works from a DAW, a phone app such as TouchOSC, a Stream
+Deck, or a script. This is Bridgehead's own syntax, so a profile file written
+for it behaves the same here. Nothing listens unless you add the line.
+
 ### Download
 
 - **macOS** — `NXOSC-Reborn-macOS.zip`
