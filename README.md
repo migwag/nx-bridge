@@ -10,9 +10,9 @@ small Bluetooth device that clips to your headphones
 and reports which way your head is pointing. This app reads it and sends that
 orientation as OSC, so binaural and immersive tools can follow your head.
 
-It replaces the macOS-only [Nxosc](https://www.audiooo.com/nxosc) 1.0.5, which was
-last updated in 2017, and adds Windows support, a profile system, smoothing
-and a settable send rate.
+It does what the macOS-only [Nxosc](https://www.audiooo.com/nxosc) 1.0.5 does,
+and adds Windows support, a profile system, smoothing and a settable send
+rate.
 
 **It follows the Supperware convention, not Nxosc's.** Supperware's
 [Bridgehead](https://supperware.net/headtracker/) is the de facto standard for
@@ -201,10 +201,11 @@ This project exists because of
 [Katsuhiro Chiba](https://www.audiooo.com/), which solved this problem first
 and solved it well. It worked reliably for years and asked nothing of anyone.
 
-NXOSC Reborn was written because Nxosc is macOS-only and was last updated in
-2017 -- not because anything was wrong with it. Its behaviour is the reference
-this was built against: the test fixtures here are recordings of Nxosc's own
-output, and every build is still checked against them.
+NXOSC Reborn was written because Nxosc is macOS-only, not because anything is
+wrong with it -- it is still maintained, with 1.0.5 built in January 2025. Its
+behaviour is the reference this was built against: the test fixtures here are
+recordings of Nxosc's own output, and every build is still checked against
+them.
 
 The name is a nod, not a claim. This is an independent project and is not
 affiliated with Katsuhiro Chiba.

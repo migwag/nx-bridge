@@ -1,7 +1,7 @@
 # Waves Nx Head Tracker — BLE protocol
 
 Reverse engineered from **[Nxosc](https://www.audiooo.com/nxosc) 1.0.5** by
-[Katsuhiro Chiba](https://www.audiooo.com/) (`com.audiooo.Nxosc`, 2017), plus
+[Katsuhiro Chiba](https://www.audiooo.com/) (`com.audiooo.Nxosc`, built January 2025), plus
 live capture from a physical tracker (HW v4.4, FW v100, SW "A v1.30 B v1.13").
 
 This document exists because of his work. Nxosc solved the problem first, and
