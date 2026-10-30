@@ -91,9 +91,9 @@ beside `config.json`, and that copy is what the app reads afterwards.
 
 Known gaps against Bridgehead:
 
-- `rx=` and `raw=` lines are parsed and ignored, so a Bridgehead file loads,
-  but incoming control messages (`/zero`, `/travel`, `/connect`) and raw
-  sensor output are not implemented.
+- `rx=PORT` is implemented: it opens a UDP listener that accepts `/zero`
+  (recentre) and `/connect` (0, 1 or no argument). `raw=` is still parsed and
+  ignored, and `/travel` is specific to Supperware hardware.
 - Angle sign conventions are inherited from Nxosc, which need not agree with
   Bridgehead's. `check_convention.py` measures ours against Bridgehead's
   documented directions and prints the parameter line that reconciles them.
@@ -122,6 +122,18 @@ you watch the plugin rather than your own head:
 Run it once per axis and note which axis the plugin moves and in which
 direction. That gives the permutation and signs directly, which you then
 write as a profile named for that plugin.
+
+## The inbound control channel
+
+`ControlListener` runs a UDP OSC server on its own thread when the profile
+file carries an `rx=PORT` line. It acts on nothing itself: each recognised
+message is pushed onto the worker's event queue and drained by the GUI on the
+main thread, so inbound OSC follows exactly the same path as a button press.
+
+A port that cannot be bound is reported in the OSC panel rather than failing
+quietly. Note the note is written by several code paths -- `_apply_output()`
+runs last during Apply -- so anything that clears it calls
+`_show_control_error()` afterwards.
 
 ## Smoothing and send rate
 

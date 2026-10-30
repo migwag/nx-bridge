@@ -19,6 +19,13 @@
 #               so -yaw__ is reversed yaw plus 180
 #   Padding     0 sends a zero, s:text sends a constant string
 #
+# INBOUND CONTROL (optional)
+#   Uncomment to let other software recentre the tracker over OSC. Send
+#   /zero to this port to reset centre, or /connect with 0, 1 or no
+#   argument to disconnect, connect or toggle. Works from a DAW, a phone
+#   app or a Stream Deck -- anything that speaks OSC.
+# rx=9010
+#
 # DESTINATIONS
 #   "local 8000", "127.0.0.1 8000" or just "8000". One per line; data goes
 #   to all of them.

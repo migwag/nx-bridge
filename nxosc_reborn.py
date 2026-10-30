@@ -31,6 +31,8 @@ except ImportError:
     pass
 
 from bleak import BleakClient, BleakScanner
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.osc_server import ThreadingOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 
 import macos_menubar as MB
@@ -111,17 +113,21 @@ def ensure_profiles_file() -> str:
 
 
 def load_profiles():
-    """-> (profiles, errors). Falls back to the shipped file if need be."""
+    """-> (profiles, errors, extras). Falls back to the shipped file if need be.
+
+    `extras` carries the file-level lines Bridgehead allows anywhere in the
+    file, notably rx=PORT for the inbound control channel.
+    """
     for path in (ensure_profiles_file(), resource_path("profiles.txt")):
         try:
             with open(path) as fh:
                 text = fh.read()
         except OSError:
             continue
-        profiles, errors, _extras = NP.parse_profiles(text)
+        profiles, errors, extras = NP.parse_profiles(text)
         if profiles or errors:
-            return profiles, errors
-    return [], []
+            return profiles, errors, extras
+    return [], [], {}
 
 
 def load_config() -> dict:
@@ -145,6 +151,45 @@ def save_config(cfg: dict) -> None:
             json.dump(cfg, fh, indent=2)
     except OSError:
         pass  # a config we cannot persist is not worth crashing over
+
+
+class ControlListener:
+    """Bridgehead's inbound control channel, enabled by an rx=PORT line.
+
+    Runs a UDP OSC server on its own thread and hands each recognised message
+    to `on_message` as a (kind, argument) pair. Nothing is acted on here: the
+    GUI drains them on the main thread, so inbound OSC takes exactly the same
+    path as a button press.
+    """
+
+    def __init__(self, port, on_message):
+        self.port = int(port)
+        self.ok = False
+        self._server = None
+        dispatcher = Dispatcher()
+        dispatcher.map("/zero", lambda _a, *args: on_message("zero", None))
+        dispatcher.map("/connect",
+                       lambda _a, *args: on_message("connect",
+                                                    args[0] if args else None))
+        dispatcher.set_default_handler(lambda _a, *_args: None)
+        try:
+            self._server = ThreadingOSCUDPServer(("0.0.0.0", self.port), dispatcher)
+        except Exception:
+            return
+        self._thread = threading.Thread(target=self._server.serve_forever,
+                                        daemon=True)
+        self._thread.start()
+        self.ok = True
+
+    def stop(self):
+        if self._server is not None:
+            try:
+                self._server.shutdown()
+                self._server.server_close()
+            except Exception:
+                pass
+        self._server = None
+        self.ok = False
 
 
 # --------------------------------------------------------------------- worker
@@ -367,6 +412,9 @@ class App(ttk.Frame):
         self._dest_summary = ""
         self._stream_start = time.monotonic()
         self._menubar_text = ""
+        self.control = None
+        self._control_note = ""
+        self._control_error = ""
 
         root.title(APP_TITLE)
         root.resizable(False, False)
@@ -426,6 +474,8 @@ class App(ttk.Frame):
 
     def quit_app(self):
         save_config(self.cfg)
+        if self.control:
+            self.control.stop()
         if self.menubar:
             self.menubar.remove()
         self.worker.shutdown()
@@ -606,13 +656,15 @@ class App(ttk.Frame):
         self.worker.set_output(ms / 1000.0 if self.cfg["smoothing"] else 0.0,
                                rate)
         self.profile_note.configure(foreground="grey", text="")
+        self._show_control_error()     # this runs last; do not lose the rx= note
         self._note(("smoothing %gms" % ms if self.cfg["smoothing"]
                     else "smoothing off")
                    + (f", sending at {rate:g} Hz" if rate else ", every packet"))
 
     # -- profiles -------------------------------------------------------
     def _reload_profiles(self, announce=True):
-        self.profiles, errors = load_profiles()
+        self.profiles, errors, extras = load_profiles()
+        self._apply_control_listener(extras)
         names = [p.name for p in self.profiles]
         self.profile_menu.configure(values=names)
         if self.cfg["profile_name"] in names:
@@ -625,6 +677,48 @@ class App(ttk.Frame):
         if announce:
             self._note(f"{len(names)} profiles loaded"
                        + (f", {len(errors)} with errors" if errors else ""))
+
+    def _apply_control_listener(self, extras):
+        """Open, move or close the rx= control port as the file dictates."""
+        values = (extras or {}).get("rx") or []
+        port = None
+        if values:
+            try:
+                port = int(str(values[-1]).strip())
+            except ValueError:
+                port = None
+
+        current = self.control.port if self.control and self.control.ok else None
+        if port == current:
+            return
+        if self.control:
+            self.control.stop()
+            self.control = None
+        if port is None:
+            self._control_note = ""
+            self._control_error = ""
+            return
+        listener = ControlListener(port, self._on_control_message)
+        if listener.ok:
+            self.control = listener
+            self._control_note = f"  |  /zero on {port}"
+            self._control_error = ""
+        else:
+            self.control = None
+            self._control_note = ""
+            self._control_error = (f"rx={port}: cannot listen on that port — "
+                                   "something else is already using it")
+        self._show_control_error()
+
+    def _show_control_error(self):
+        """Keep the rx= problem visible; Apply clears the note otherwise."""
+        if self._control_error:
+            self.profile_note.configure(foreground="#b00",
+                                        text=self._control_error)
+
+    def _on_control_message(self, kind, argument):
+        """Called from the OSC thread; hand off to the GUI thread untouched."""
+        self.worker.events.put((f"control:{kind}", argument))
 
     def _on_profile_chosen(self, _event=None):
         chosen = next((p for p in self.profiles
@@ -691,6 +785,7 @@ class App(ttk.Frame):
             return
 
         self.profile_note.configure(foreground="grey", text="")
+        self._show_control_error()
         self.cfg["profile_name"] = self.profile_var.get()
         self.cfg["address"] = self.address_var.get().strip()
         self.cfg["params"] = self.params_var.get().strip()
@@ -702,7 +797,8 @@ class App(ttk.Frame):
         where = ", ".join(f"{h}:{p}" for h, p in profile.destinations)
         self._dest_summary = where
         self._note(f"{len(profile.addresses)} message"
-                   f"{'' if len(profile.addresses) == 1 else 's'} -> {where}")
+                   f"{'' if len(profile.addresses) == 1 else 's'} -> {where}"
+                   f"{self._control_note}")
 
     def _choose_device(self, devices):
         """Modal device picker, standing in for the original's Device Scan sheet."""
@@ -808,7 +904,7 @@ class App(ttk.Frame):
                 out = f" / {self.worker.sent / max(elapsed_total, 1e-9):.0f} Hz out"
             self._note(f"streaming   {self._rate:.1f} Hz{out}   "
                        f"frames {self.worker.frames}   "
-                       f"OSC -> {self._dest_summary}")
+                       f"OSC -> {self._dest_summary}{self._control_note}")
             self._menubar_status(f"Streaming {self._rate:.0f} Hz")
             if self.menubar:
                 self.menubar.set_active(True)
@@ -860,6 +956,17 @@ class App(ttk.Frame):
                                  else "Not connected")
             if self.menubar:
                 self.menubar.set_active(False)
+        elif kind == "control:zero":
+            self._note("reset center (via OSC)")
+            self.worker.recenter()
+        elif kind == "control:connect":
+            want = payload
+            if want in (0, 0.0, False) and self.connected:
+                self.worker.disconnect()
+            elif want in (1, 1.0, True) and not self.connected:
+                self._on_connect()
+            elif want is None:
+                self._on_connect() if not self.connected else self.worker.disconnect()
         elif kind == "recentered":
             self._note("reset center sent")
         elif kind == "error":

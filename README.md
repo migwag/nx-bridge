@@ -178,8 +178,8 @@ it, on few setups. Bug reports are welcome — please say which plugin, which
 platform, and what you expected.
 
 Known gaps: the macOS and Windows builds are unsigned, so both show a warning
-on first launch. Bridgehead's `rx=` and `raw=` lines are accepted but do
-nothing. Linux is expected to work from source but has not been tried.
+on first launch. Bridgehead's `raw=` line is accepted but does nothing, and
+`/travel` is not implemented as it is specific to Supperware hardware. Linux is expected to work from source but has not been tried.
 
 ## Building it yourself
 
