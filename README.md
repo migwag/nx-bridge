@@ -196,23 +196,18 @@ Needs Python 3.10 or newer. There is also a command-line version,
 
 ## With thanks to Katsuhiro Chiba
 
-This project exists because of
-**[Nxosc](https://www.audiooo.com/nxosc)** by
-[Katsuhiro Chiba](https://www.audiooo.com/), which solved this problem first
-and solved it well. It worked reliably for years and asked nothing of anyone.
+This project exists because of [Nxosc](https://www.audiooo.com/nxosc) by
+[Katsuhiro Chiba](https://www.audiooo.com/). Nxosc solved the problem first
+and it solved it well.
 
-NXOSC Reborn covers ground Nxosc does not. It runs on Windows as well as
-macOS, and its OSC output is yours to shape: you choose the addresses, which
-values go in them, their order, scaling and signs, and where they are sent --
-rather than taking a fixed set of five messages. That is why it exists, not
-any shortcoming in the original.
+NXOSC Reborn adds two things Nxosc doesn’t have. It runs on Windows as well
+as macOS (and may work on Linux, though that’s untested), and its OSC output
+is configurable: instead of a fixed set of five messages, you choose the
+addresses, which values go in them, their order, scaling and signs, and where
+they’re sent.
 
-Nxosc also remains the reference the tracker decoding was checked against.
-This repository contains 3,628 frames recorded from it, and every build
-replays them to confirm the tracker's data is still read correctly.
-
-The name is a nod, not a claim. This is an independent project and is not
-affiliated with Katsuhiro Chiba.
+The name is a nod to the original. NXOSC Reborn is an independent project and
+is not affiliated with Katsuhiro Chiba.
 
 ## Licence
 
