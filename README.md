@@ -201,11 +201,15 @@ This project exists because of
 [Katsuhiro Chiba](https://www.audiooo.com/), which solved this problem first
 and solved it well. It worked reliably for years and asked nothing of anyone.
 
-NXOSC Reborn covers ground Nxosc does not: it runs on Windows, and it is built
-to be installed without a fight. That is why it exists -- not any shortcoming
-in the original, whose behaviour is the reference this was built against. The
-test fixtures here are recordings of Nxosc's own output, and every build is
-still checked against them.
+NXOSC Reborn covers ground Nxosc does not. It runs on Windows as well as
+macOS, and its OSC output is yours to shape: you choose the addresses, which
+values go in them, their order, scaling and signs, and where they are sent --
+rather than taking a fixed set of five messages. That is why it exists, not
+any shortcoming in the original.
+
+Nxosc also remains the reference the tracker decoding was checked against.
+This repository contains 3,628 frames recorded from it, and every build
+replays them to confirm the tracker's data is still read correctly.
 
 The name is a nod, not a claim. This is an independent project and is not
 affiliated with Katsuhiro Chiba.
