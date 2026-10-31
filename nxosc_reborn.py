@@ -421,6 +421,8 @@ class App(ttk.Frame):
         self._last_frames = 0
         self._last_time = time.monotonic()
         self._rate = 0.0
+        self._last_sent = 0
+        self._out_rate = 0.0
         self._dest_summary = ""
         self._stream_start = time.monotonic()
         self._menubar_text = ""
@@ -901,19 +903,31 @@ class App(ttk.Frame):
                 self.readouts[key].set(f"{values[key] * P.DEG:+8.2f}°")
 
         if self.connected:
-            # Time-based, exponentially smoothed: counting frames per tick would
-            # quantise to multiples of UI_HZ and flicker.
+            # Both rates are measured over the gap since the last tick and
+            # then smoothed. Counting per tick alone would quantise to
+            # multiples of UI_HZ and flicker; averaging since the stream
+            # began would mean a change to the send rate took most of a
+            # session to show up.
             now = time.monotonic()
             elapsed = now - self._last_time
             if elapsed > 0:
-                instant = (self.worker.frames - self._last_frames) / elapsed
-                self._rate = (instant if self._rate == 0.0
-                              else self._rate * 0.8 + instant * 0.2)
-            self._last_frames, self._last_time = self.worker.frames, now
-            elapsed_total = max(now - self._stream_start, 1e-9)
+                incoming = (self.worker.frames - self._last_frames) / elapsed
+                self._rate = (incoming if self._rate == 0.0
+                              else self._rate * 0.8 + incoming * 0.2)
+                # Smoothed harder than the incoming rate: at a low send
+                # rate a tick's window holds zero or one packet, so the raw
+                # estimate swings wildly. ~1 s of averaging keeps the number
+                # readable while still following a change within a second or
+                # two.
+                outgoing = (self.worker.sent - self._last_sent) / elapsed
+                self._out_rate = (outgoing if self._out_rate == 0.0
+                                  else self._out_rate * 0.94 + outgoing * 0.06)
+            self._last_frames = self.worker.frames
+            self._last_sent = self.worker.sent
+            self._last_time = now
             out = ""
             if self.worker.min_interval:
-                out = f" / {self.worker.sent / max(elapsed_total, 1e-9):.0f} Hz out"
+                out = f" / {self._out_rate:.0f} Hz out"
             self._note(f"streaming   {self._rate:.1f} Hz{out}   "
                        f"frames {self.worker.frames}   "
                        f"OSC -> {self._dest_summary}{self._control_note}")
@@ -947,6 +961,8 @@ class App(ttk.Frame):
             self._last_time = time.monotonic()
             self._stream_start = self._last_time
             self._rate = 0.0
+            self._last_sent = self.worker.sent
+            self._out_rate = 0.0
             self.cfg["last_address"] = payload["address"]
             save_config(self.cfg)
             self.connect_button.configure(text="Disconnect")
