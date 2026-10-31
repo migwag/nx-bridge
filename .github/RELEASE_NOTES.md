@@ -7,13 +7,20 @@ applications unchanged. Coming from Nxosc 1.0.5, note that yaw and pitch run
 the opposite way and quaternion components are named Supperware's way — the
 README explains how to get the old behaviour back.
 
-### What's new in 0.9.1
+### What's new in 0.9.2
 
-**Recentre from other software.** Add `rx=9010` to your `profiles.txt` and
-the app listens for OSC `/zero` to reset centre, or `/connect` with `1`, `0`
-or no argument. It works from a DAW, a phone app such as TouchOSC, a Stream
-Deck, or a script. This is Bridgehead's own syntax, so a profile file written
-for it behaves the same here. Nothing listens unless you add the line.
+**Send rate fixed.** It was wrong at almost every setting, not just erratic:
+asking for 30 Hz off a 50 Hz tracker delivered 25, and 25 delivered 20.6. The
+requested rate is now delivered exactly. The Hz figure in the status line also
+follows the setting as you change it, rather than averaging over the whole
+session.
+
+**Building from source.** `build_app.sh` now checks the Python you are
+building with before it starts, and refuses with an explanation if the result
+would be an app that dies the moment it launches. If one already does, both it
+and DEVELOPING.md tell you how to see the real error.
+
+Also: a note of thanks to Katsuhiro Chiba, whose Nxosc this follows.
 
 ### Download
 
