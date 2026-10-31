@@ -252,6 +252,23 @@ The macOS bundle is named "NXOSC Reborn.app" with a space, since that is the
 app's name. Everything internal -- the executable inside it, the source files,
 the spec, the config directory, CI artifact names -- keeps the underscore.
 
+### The built app does not start
+
+A Dock icon that flashes and vanishes with no error means the process died
+during startup. The bundle hides stdout, so run the binary inside it directly
+and the traceback appears:
+
+    "dist/NXOSC Reborn.app/Contents/MacOS/NXOSC_Reborn"
+
+On Windows, run `dist\NXOSC_Reborn\NXOSC_Reborn.exe` from a Command Prompt.
+
+The usual cause on macOS is the Python used for the build. PyInstaller bundles
+whatever Tcl/Tk it finds, and a Python without a working Tk -- some Homebrew
+and pyenv builds, or a venv made from one -- produces an app that builds
+cleanly and then dies instantly. `build_app.sh` now checks for this before
+building and refuses with an explanation, but a bundle built before that check
+existed will still fail this way. Rebuild with a python.org framework build.
+
 PyInstaller cannot cross-compile; each platform must be built on itself. CI
 (`.github/workflows/build.yml`) builds both on every push and uploads them as
 artifacts, which is the practical way to get a Windows build from a Mac:

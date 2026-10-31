@@ -149,6 +149,10 @@ them, and save it as a profile for that plugin.
 **The receiver stutters.** Lower the send rate. 25 Hz, even 10 Hz, is plenty
 for head tracking.
 
+**An app you built yourself will not start.** See
+[DEVELOPING.md](DEVELOPING.md) -- run the binary inside the bundle to see the
+error. Almost always it is a Python without a working Tkinter.
+
 ---
 
 ## Coming from Nxosc

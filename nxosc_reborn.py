@@ -212,7 +212,7 @@ class TrackerWorker:
         self.smoother = P.Smoother(0.0)
         self.min_interval = 0.0      # 0 means send every packet
         self.sent = 0
-        self._last_send = 0.0
+        self._next_send = None
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -233,7 +233,10 @@ class TrackerWorker:
         if smoothing_tau != self.smoother.tau:
             self.smoother.tau = max(0.0, smoothing_tau)
             self.smoother.reset()
-        self.min_interval = (1.0 / send_rate) if send_rate and send_rate > 0 else 0.0
+        interval = (1.0 / send_rate) if send_rate and send_rate > 0 else 0.0
+        if interval != self.min_interval:
+            self._next_send = None          # restart the schedule cleanly
+        self.min_interval = interval
 
     def set_profile(self, profile):
         """Swap in a parsed profile and open a socket per destination."""
@@ -316,7 +319,7 @@ class TrackerWorker:
 
         self.frames = 0
         self.sent = 0
-        self._last_send = 0.0
+        self._next_send = None
         self.smoother.reset()
         try:
             await client.start_notify(P.CHAR_DATA, self._on_packet)
@@ -377,9 +380,18 @@ class TrackerWorker:
 
         # The filter still sees every packet; only sending is thinned, so
         # reducing the rate does not turn smoothing into aliasing.
-        if self.min_interval and (now - self._last_send) < self.min_interval:
-            return
-        self._last_send = now
+        #
+        # The schedule accumulates rather than measuring from the last send.
+        # Measuring elapsed time lets every late packet push the next one
+        # later again, so a 30 Hz request off a 50 Hz source degraded to 25,
+        # and floating-point jitter at the boundary made it erratic. The
+        # epsilon absorbs that jitter when a packet lands exactly on the mark.
+        if self.min_interval:
+            if self._next_send is None:
+                self._next_send = now
+            if now + 1e-6 < self._next_send:
+                return
+            self._next_send = max(now, self._next_send + self.min_interval)
 
         profile = self.profile
         if profile is None:
