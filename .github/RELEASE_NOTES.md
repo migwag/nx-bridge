@@ -7,20 +7,20 @@ applications unchanged. Coming from Nxosc 1.0.5, note that yaw and pitch run
 the opposite way and quaternion components are named Supperware's way — the
 README explains how to get the old behaviour back.
 
-### What's new in 0.9.2
+### What's new in 0.9.3
 
-**Send rate fixed.** It was wrong at almost every setting, not just erratic:
-asking for 30 Hz off a 50 Hz tracker delivered 25, and 25 delivered 20.6. The
-requested rate is now delivered exactly. The Hz figure in the status line also
-follows the setting as you change it, rather than averaging over the whole
-session.
+**Recenter now levels pitch and roll as well as yaw.** The tracker's own reset
+only touches yaw -- pitch and roll are measured against gravity, so there is
+nothing in the device to reset -- which left a tracker mounted at an angle
+reporting that angle forever. **Recenter in software**, on the Tracker tab,
+levels all three. It is on by default for new installations; if you have run
+an earlier version, tick it yourself, as your saved settings are left alone.
 
-**Building from source.** `build_app.sh` now checks the Python you are
-building with before it starts, and refuses with an explanation if the result
-would be an app that dies the moment it launches. If one already does, both it
-and DEVELOPING.md tell you how to see the real error.
+Recentering also no longer drags the smoothing filter across the jump it
+deliberately creates.
 
-Also: a note of thanks to Katsuhiro Chiba, whose Nxosc this follows.
+**One name for it.** The button, the menu bar and the messages all say
+*Recenter* now, instead of mixing that with *Reset Center*.
 
 ### Download
 
