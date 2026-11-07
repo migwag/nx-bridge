@@ -371,12 +371,13 @@ class TrackerWorker:
 
     def _on_packet(self, _handle, data: bytearray):
         raw = bytes(data)
-        # A recentre stops and restarts the stream, and packets emitted in
-        # between carry the idle marker and a meaningless payload. Feeding
-        # those to the filter made the transition lurch.
-        if not P.is_valid(raw):
-            self.rejected += 1
+        if len(raw) != P.PACKET_LEN:
             return
+        # NOT filtering on the status bytes here. Rejecting FF FF looked
+        # right -- PROTOCOL.md records it as "not streaming" -- but it broke
+        # recentring on macOS, which means the tracker does emit real data
+        # with status bytes we have not characterised. P.is_valid() is kept
+        # for when a capture across a recentre shows what they actually are.
         now = time.monotonic()
         try:
             a, b, c, w, _s0, _s1 = P.decode_packet(raw)
