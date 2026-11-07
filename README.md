@@ -89,11 +89,14 @@ The **Tracker** tab shows the device, its battery and live orientation, plus
 the stream rate and where OSC is going. **Reset Center** makes your current
 head position the new centre; use it once the tracker is on your head.
 
-The tracker itself only resets **yaw**. Pitch and roll are measured against
-gravity, so they never drift and there is nothing in the device to reset. If
-the tracker sits at an angle on your headband, tick **Recenter in software**
-and Reset Center will level those too -- done here rather than on the tracker,
-by measuring everything relative to the position you reset at.
+A **hardware recenter** -- what the tracker itself does, and what you get by
+default -- only resets **yaw**. Pitch and roll are measured against gravity,
+so they never drift and there is nothing in the device to reset.
+
+Tick **Recenter in software** and Reset Center levels all three. That one is
+done here rather than on the tracker, by measuring everything relative to the
+position you reset at, which also compensates for the tracker sitting at an
+angle on your headband.
 
 On macOS the app also lives in the menu bar. Closing the window leaves it
 running and streaming, and the Dock icon disappears; the menu bar icon shows

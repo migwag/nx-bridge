@@ -608,7 +608,8 @@ class App(ttk.Frame):
                             row=row, column=0, columnspan=2, pady=(4, 0))
         row += 1
         ttk.Label(parent, foreground="grey", wraplength=300, justify="center",
-                  text="Levels pitch and roll as well as yaw."
+                  text=("A hardware recenter only resets yaw. "
+                        "Software recenter also levels pitch and roll.")
                   ).grid(row=row, column=0, columnspan=2, pady=(1, 0))
 
     def _build_osc(self, parent):
