@@ -212,6 +212,7 @@ class TrackerWorker:
         self.smoother = P.Smoother(0.0)
         self.min_interval = 0.0      # 0 means send every packet
         self.sent = 0
+        self.rejected = 0
         self._next_send = None
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -319,6 +320,7 @@ class TrackerWorker:
 
         self.frames = 0
         self.sent = 0
+        self.rejected = 0
         self._next_send = None
         self.smoother.reset()
         try:
@@ -353,6 +355,10 @@ class TrackerWorker:
         try:
             for command in P.CMD_RECENTER:
                 await self._client.write_gatt_char(P.CHAR_CONTROL, command, response=True)
+            # The orientation deliberately jumps here. Blending across that
+            # would drag the filter from the old reference to the new one
+            # over several time constants.
+            self.smoother.reset()
             self._post("recentered")
         except Exception as exc:
             self._post("error", f"recenter failed: {exc}")
@@ -364,11 +370,16 @@ class TrackerWorker:
         self._post("dropped")
 
     def _on_packet(self, _handle, data: bytearray):
-        if len(data) != P.PACKET_LEN:
+        raw = bytes(data)
+        # A recentre stops and restarts the stream, and packets emitted in
+        # between carry the idle marker and a meaningless payload. Feeding
+        # those to the filter made the transition lurch.
+        if not P.is_valid(raw):
+            self.rejected += 1
             return
         now = time.monotonic()
         try:
-            a, b, c, w, _s0, _s1 = P.decode_packet(bytes(data))
+            a, b, c, w, _s0, _s1 = P.decode_packet(raw)
             if self.smoother.tau > 0.0:
                 a, b, c, w = self.smoother.push((a, b, c, w), now)
             values = P.derive(a, b, c, w)

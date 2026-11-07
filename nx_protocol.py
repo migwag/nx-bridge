@@ -29,6 +29,27 @@ CMD_RECENTER  = (CMD_STOP, CMD_START)
 
 # ---------------------------------------------------------------- packet decode
 PACKET_LEN = 10
+
+# Status bytes seen while streaming. A read taken while the tracker is idle
+# returns FF FF with a meaningless payload, and a stop/start -- which is what
+# a recentre is -- passes through that state.
+STATUS_IDLE = (0xFF, 0xFF)
+
+
+def is_valid(buf):
+    """Is this packet real orientation data?
+
+    Two checks, because firmware we have not seen may use other status
+    values: reject the known idle marker, and reject anything that is not a
+    unit quaternion, which no genuine reading ever is.
+    """
+    if len(buf) != PACKET_LEN:
+        return False
+    if (buf[8], buf[9]) == STATUS_IDLE:
+        return False
+    q0, q1, q2, q3 = struct.unpack_from("<4h", buf, 0)
+    norm_sq = (q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3) * _SCALE * _SCALE
+    return 0.81 < norm_sq < 1.21          # +-10% on the norm
 _SCALE = 2.0 / 32767.0       # the binary divides by 32767.0f then doubles
 
 def decode_packet(buf):

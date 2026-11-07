@@ -81,7 +81,10 @@ Each component is scaled `value / 32767.0 * 2.0` (constant `32767.0f` at
 to within int16 quantization.
 
 A read of `A015` while idle returns `00 00 00 00 00 00 01 00 FF FF` — status bytes
-`FF FF` mark "not streaming".
+`FF FF` mark "not streaming". Packets carrying that marker also appear briefly
+during a recentre, which is a stop followed by a start, and their payload is
+meaningless. Reject them, and reject anything whose quaternion is not of unit
+length, which no genuine reading ever is.
 
 ## Axis remap applied by Nxosc
 
