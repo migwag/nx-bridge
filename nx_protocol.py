@@ -32,7 +32,7 @@ PACKET_LEN = 10
 
 # Status bytes seen while streaming. A read taken while the tracker is idle
 # returns FF FF with a meaningless payload, and a stop/start -- which is what
-# a recentre is -- passes through that state.
+# a recenter is -- passes through that state.
 STATUS_IDLE = (0xFF, 0xFF)
 
 

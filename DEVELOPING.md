@@ -92,7 +92,7 @@ beside `config.json`, and that copy is what the app reads afterwards.
 Known gaps against Bridgehead:
 
 - `rx=PORT` is implemented: it opens a UDP listener that accepts `/zero`
-  (recentre) and `/connect` (0, 1 or no argument). `raw=` is still parsed and
+  (recenter) and `/connect` (0, 1 or no argument). `raw=` is still parsed and
   ignored, and `/travel` is specific to Supperware hardware.
 - Angle sign conventions are inherited from Nxosc, which need not agree with
   Bridgehead's. `check_convention.py` measures ours against Bridgehead's
@@ -135,20 +135,20 @@ quietly. Note the note is written by several code paths -- `_apply_output()`
 runs last during Apply -- so anything that clears it calls
 `_show_control_error()` afterwards.
 
-## Recentring
+## Recentering
 
 The tracker's own reset is a stop followed by a start on `A011`, and it
 zeroes yaw only -- pitch and roll come from gravity and have nothing to
 reset.
 
-"Also zero pitch and roll" adds a software zero on top. On recentre the
+"Also zero pitch and roll" adds a software zero on top. On recenter the
 worker waits for the stream to resume, captures the attitude as
 `self.reference`, and thereafter reports `conj(reference) * q`. Composing
 rotations rather than subtracting Euler angles matters: subtraction breaks at
 the +-180 wrap and near the poles.
 
 `_raw_quat` holds the attitude before the reference is applied, so a second
-recentre captures a fresh reference rather than a reference of a reference.
+recenter captures a fresh reference rather than a reference of a reference.
 The reference is dropped on connect, on disconnect, and when the option is
 switched off.
 

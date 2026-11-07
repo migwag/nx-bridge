@@ -4,7 +4,7 @@ NXOSC_Reborn -- Waves Nx Head Tracker to OSC, with a GUI, on macOS/Windows/Linux
 
 A reimplementation of the macOS-only Nxosc 1.0.5. The layout follows the
 original (Connect at the top, device and battery, OSC destination, live
-readouts, Reset Center at the bottom) and adds an OSC tab for editing the
+readouts, Recenter at the bottom) and adds an OSC tab for editing the
 message addresses, which the original hardcoded.
 
     python nxosc_reborn.py
@@ -89,7 +89,7 @@ DEFAULT_CONFIG = {
     "smoothing": False,
     "smoothing_ms": 60.0,
     "send_rate": 0.0,          # 0 = send every packet (50 Hz)
-    "zero_all_axes": False,    # Reset Center also zeroes pitch and roll
+    "zero_all_axes": True,     # Recenter levels pitch and roll too
     "last_address": "",
 }
 
@@ -211,7 +211,7 @@ class TrackerWorker:
         self.profile = None
         self._clients: list = []
         self.smoother = P.Smoother(0.0)
-        self.reference = None        # software zero, set by a full recentre
+        self.reference = None        # software zero, set by a full recenter
         self.zero_all_axes = False
         self._raw_quat = None        # newest attitude BEFORE the reference
         self.min_interval = 0.0      # 0 means send every packet
@@ -380,7 +380,7 @@ class TrackerWorker:
                     if self._raw_quat is not None:
                         break
                 if self._raw_quat is None:
-                    self._post("error", "recentred yaw, but no data came back "
+                    self._post("error", "recentered yaw, but no data came back "
                                         "to zero pitch and roll from")
                     return
                 await asyncio.sleep(0.25)        # let it settle
@@ -402,16 +402,16 @@ class TrackerWorker:
             return
         # NOT filtering on the status bytes here. Rejecting FF FF looked
         # right -- PROTOCOL.md records it as "not streaming" -- but it broke
-        # recentring on macOS, which means the tracker does emit real data
+        # recentering on macOS, which means the tracker does emit real data
         # with status bytes we have not characterised. P.is_valid() is kept
-        # for when a capture across a recentre shows what they actually are.
+        # for when a capture across a recenter shows what they actually are.
         now = time.monotonic()
         try:
             a, b, c, w, _s0, _s1 = P.decode_packet(raw)
             if self.smoother.tau > 0.0:
                 a, b, c, w = self.smoother.push((a, b, c, w), now)
             # Keep the attitude as the tracker reports it, so a later
-            # recentre captures a reference rather than a reference of a
+            # recenter captures a reference rather than a reference of a
             # reference.
             self._raw_quat = (a, b, c, w)
             if self.reference is not None:
@@ -508,7 +508,7 @@ class App(ttk.Frame):
                 ("Not connected", self.show_window),   # 0: doubles as status
                 None,
                 ("Show Window", self.show_window),
-                ("Reset Center", self._on_recenter),
+                ("Recenter", self._on_recenter),
                 None,
                 ("Quit " + APP_TITLE, self.quit_app),
             ])
@@ -595,7 +595,7 @@ class App(ttk.Frame):
                                    sticky="ew", pady=10)
         row += 1
 
-        self.recenter_button = ttk.Button(parent, text="Reset Center",
+        self.recenter_button = ttk.Button(parent, text="Recenter",
                                           command=self._on_recenter,
                                           state="disabled")
         self.recenter_button.grid(row=row, column=0, columnspan=2)
@@ -1053,7 +1053,7 @@ class App(ttk.Frame):
             if self.menubar:
                 self.menubar.set_active(False)
         elif kind == "control:zero":
-            self._note("reset center (via OSC)")
+            self._note("recentered (via OSC)")
             self.worker.recenter()
         elif kind == "control:connect":
             want = payload
@@ -1064,7 +1064,7 @@ class App(ttk.Frame):
             elif want is None:
                 self._on_connect() if not self.connected else self.worker.disconnect()
         elif kind == "recentered":
-            self._note("reset center sent")
+            self._note("recentered")
         elif kind == "error":
             self._set_busy(False)
             self._note(str(payload))
