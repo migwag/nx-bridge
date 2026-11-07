@@ -127,6 +127,38 @@ DEFAULT_ADDRESSES = {
 }
 
 
+def quaternion_conjugate(q):
+    """(x, y, z, w) -> its conjugate, which is the inverse for unit quaternions."""
+    x, y, z, w = q
+    return (-x, -y, -z, w)
+
+
+def quaternion_multiply(q1, q2):
+    """Hamilton product of two (x, y, z, w) quaternions."""
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
+
+
+def apply_reference(q, reference):
+    """Re-express `q` relative to `reference`, so the reference pose reads level.
+
+    conj(reference) * q, which is identity when q equals the reference. Done
+    as a rotation rather than by subtracting Euler angles, so it behaves at
+    the +-180 wrap and near the poles where subtraction falls apart.
+    """
+    if reference is None:
+        return q
+    out = quaternion_multiply(quaternion_conjugate(reference), q)
+    norm = math.sqrt(sum(v * v for v in out))
+    return out if norm < 1e-9 else tuple(v / norm for v in out)
+
+
 def derive(a, b, c, w):
     """Quaternion -> every value we expose. Angles in radians."""
     e4 = euler_mode4(a, b, c, w)

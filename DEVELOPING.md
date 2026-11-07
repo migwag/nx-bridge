@@ -135,6 +135,23 @@ quietly. Note the note is written by several code paths -- `_apply_output()`
 runs last during Apply -- so anything that clears it calls
 `_show_control_error()` afterwards.
 
+## Recentring
+
+The tracker's own reset is a stop followed by a start on `A011`, and it
+zeroes yaw only -- pitch and roll come from gravity and have nothing to
+reset.
+
+"Also zero pitch and roll" adds a software zero on top. On recentre the
+worker waits for the stream to resume, captures the attitude as
+`self.reference`, and thereafter reports `conj(reference) * q`. Composing
+rotations rather than subtracting Euler angles matters: subtraction breaks at
+the +-180 wrap and near the poles.
+
+`_raw_quat` holds the attitude before the reference is applied, so a second
+recentre captures a fresh reference rather than a reference of a reference.
+The reference is dropped on connect, on disconnect, and when the option is
+switched off.
+
 ## Smoothing and send rate
 
 `nx_protocol.Smoother` low-passes the **quaternion**, not the angles.

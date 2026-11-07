@@ -89,6 +89,7 @@ DEFAULT_CONFIG = {
     "smoothing": False,
     "smoothing_ms": 60.0,
     "send_rate": 0.0,          # 0 = send every packet (50 Hz)
+    "zero_all_axes": False,    # Reset Center also zeroes pitch and roll
     "last_address": "",
 }
 
@@ -210,6 +211,9 @@ class TrackerWorker:
         self.profile = None
         self._clients: list = []
         self.smoother = P.Smoother(0.0)
+        self.reference = None        # software zero, set by a full recentre
+        self.zero_all_axes = False
+        self._raw_quat = None        # newest attitude BEFORE the reference
         self.min_interval = 0.0      # 0 means send every packet
         self.sent = 0
         self.rejected = 0
@@ -322,6 +326,8 @@ class TrackerWorker:
         self.sent = 0
         self.rejected = 0
         self._next_send = None
+        self.reference = None
+        self._raw_quat = None
         self.smoother.reset()
         try:
             await client.start_notify(P.CHAR_DATA, self._on_packet)
@@ -347,6 +353,8 @@ class TrackerWorker:
             except Exception:
                 pass
         self.latest = None
+        self.reference = None
+        self._raw_quat = None
         self._post("disconnected")
 
     async def _recenter(self):
@@ -359,6 +367,25 @@ class TrackerWorker:
             # would drag the filter from the old reference to the new one
             # over several time constants.
             self.smoother.reset()
+
+            if self.zero_all_axes:
+                # The tracker only zeroes yaw -- pitch and roll are measured
+                # against gravity and have nothing to reset. Zero those here
+                # instead, by remembering the current attitude and reporting
+                # everything relative to it.
+                self.reference = None            # capture the raw attitude
+                self._raw_quat = None
+                for _ in range(40):              # wait for the stream to resume
+                    await asyncio.sleep(0.05)
+                    if self._raw_quat is not None:
+                        break
+                if self._raw_quat is None:
+                    self._post("error", "recentred yaw, but no data came back "
+                                        "to zero pitch and roll from")
+                    return
+                await asyncio.sleep(0.25)        # let it settle
+                self.reference = self._raw_quat
+
             self._post("recentered")
         except Exception as exc:
             self._post("error", f"recenter failed: {exc}")
@@ -383,6 +410,12 @@ class TrackerWorker:
             a, b, c, w, _s0, _s1 = P.decode_packet(raw)
             if self.smoother.tau > 0.0:
                 a, b, c, w = self.smoother.push((a, b, c, w), now)
+            # Keep the attitude as the tracker reports it, so a later
+            # recentre captures a reference rather than a reference of a
+            # reference.
+            self._raw_quat = (a, b, c, w)
+            if self.reference is not None:
+                a, b, c, w = P.apply_reference((a, b, c, w), self.reference)
             values = P.derive(a, b, c, w)
         except Exception:
             return
@@ -566,6 +599,20 @@ class App(ttk.Frame):
                                           command=self._on_recenter,
                                           state="disabled")
         self.recenter_button.grid(row=row, column=0, columnspan=2)
+        row += 1
+
+        self.zero_all_var = tk.BooleanVar(value=bool(self.cfg["zero_all_axes"]))
+        ttk.Checkbutton(parent, text="also zero pitch and roll",
+                        variable=self.zero_all_var,
+                        command=self._apply_zero_mode).grid(
+                            row=row, column=0, columnspan=2, pady=(4, 0))
+        row += 1
+        ttk.Label(parent, foreground="grey", wraplength=300, justify="center",
+                  text=("The tracker only resets yaw; pitch and roll are "
+                        "measured against gravity. Tick this to level them "
+                        "too, which compensates for the tracker sitting at "
+                        "an angle.")
+                  ).grid(row=row, column=0, columnspan=2, pady=(2, 0))
 
     def _build_osc(self, parent):
         parent.columnconfigure(1, weight=1)
@@ -681,6 +728,7 @@ class App(ttk.Frame):
         save_config(self.cfg)
         self.worker.set_output(ms / 1000.0 if self.cfg["smoothing"] else 0.0,
                                rate)
+        self.worker.zero_all_axes = bool(self.cfg["zero_all_axes"])
         self.profile_note.configure(foreground="grey", text="")
         self._show_control_error()     # this runs last; do not lose the rx= note
         self._note(("smoothing %gms" % ms if self.cfg["smoothing"]
@@ -791,6 +839,16 @@ class App(ttk.Frame):
             return
         self._set_busy(True, "scanning for Nx Tracker ...")
         self.worker.scan()
+
+    def _apply_zero_mode(self):
+        self.cfg["zero_all_axes"] = bool(self.zero_all_var.get())
+        self.worker.zero_all_axes = self.cfg["zero_all_axes"]
+        save_config(self.cfg)
+        if not self.cfg["zero_all_axes"]:
+            self.worker.reference = None      # back to the tracker's own zero
+            self._note("pitch and roll follow the tracker again")
+        else:
+            self._note("Reset Center will zero all three axes")
 
     def _on_recenter(self):
         self.worker.recenter()
