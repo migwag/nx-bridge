@@ -91,9 +91,9 @@ head position the new centre; use it once the tracker is on your head.
 
 The tracker itself only resets **yaw**. Pitch and roll are measured against
 gravity, so they never drift and there is nothing in the device to reset. If
-the tracker sits at an angle on your headband, tick **also zero pitch and
-roll** and Reset Center will level those too -- done here rather than on the
-tracker, by measuring everything relative to the position you reset at.
+the tracker sits at an angle on your headband, tick **Recenter in software**
+and Reset Center will level those too -- done here rather than on the tracker,
+by measuring everything relative to the position you reset at.
 
 On macOS the app also lives in the menu bar. Closing the window leaves it
 running and streaming, and the Dock icon disappears; the menu bar icon shows

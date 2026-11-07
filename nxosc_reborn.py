@@ -602,17 +602,14 @@ class App(ttk.Frame):
         row += 1
 
         self.zero_all_var = tk.BooleanVar(value=bool(self.cfg["zero_all_axes"]))
-        ttk.Checkbutton(parent, text="also zero pitch and roll",
+        ttk.Checkbutton(parent, text="Recenter in software",
                         variable=self.zero_all_var,
                         command=self._apply_zero_mode).grid(
                             row=row, column=0, columnspan=2, pady=(4, 0))
         row += 1
         ttk.Label(parent, foreground="grey", wraplength=300, justify="center",
-                  text=("The tracker only resets yaw; pitch and roll are "
-                        "measured against gravity. Tick this to level them "
-                        "too, which compensates for the tracker sitting at "
-                        "an angle.")
-                  ).grid(row=row, column=0, columnspan=2, pady=(2, 0))
+                  text="Levels pitch and roll as well as yaw."
+                  ).grid(row=row, column=0, columnspan=2, pady=(1, 0))
 
     def _build_osc(self, parent):
         parent.columnconfigure(1, weight=1)
@@ -846,9 +843,9 @@ class App(ttk.Frame):
         save_config(self.cfg)
         if not self.cfg["zero_all_axes"]:
             self.worker.reference = None      # back to the tracker's own zero
-            self._note("pitch and roll follow the tracker again")
+            self._note("recentering on the tracker only")
         else:
-            self._note("Reset Center will zero all three axes")
+            self._note("recentering in software, all axes")
 
     def _on_recenter(self):
         self.worker.recenter()
