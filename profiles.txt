@@ -20,10 +20,15 @@
 #   Padding     0 sends a zero, s:text sends a constant string
 #
 # INBOUND CONTROL (optional)
-#   Uncomment to let other software recentre the tracker over OSC. Send
+#   Uncomment to let other software recenter the tracker over OSC. Send
 #   /zero to this port to reset centre, or /connect with 0, 1 or no
-#   argument to disconnect, connect or toggle. Works from a DAW, a phone
-#   app or a Stream Deck -- anything that speaks OSC.
+#   argument to disconnect, connect or toggle.
+#
+#   This listens on this machine only. Anything that can reach the port can
+#   interrupt the stream or move the orientation reference, and there is
+#   nothing to authenticate with, so accepting commands from the network is
+#   opt-in: give an address as well as a port, e.g. "rx=0.0.0.0 9010" for
+#   any interface, or a specific one to limit it.
 # rx=9010
 #
 # DESTINATIONS

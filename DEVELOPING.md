@@ -130,6 +130,10 @@ file carries an `rx=PORT` line. It acts on nothing itself: each recognised
 message is pushed onto the worker's event queue and drained by the GUI on the
 main thread, so inbound OSC follows exactly the same path as a button press.
 
+It binds loopback unless the `rx=` line carries an address too, in the same
+shape as a destination. There is no authentication, and the commands reach
+the tracker, so remote access is a deliberate choice rather than the default.
+
 A port that cannot be bound is reported in the OSC panel rather than failing
 quietly. Note the note is written by several code paths -- `_apply_output()`
 runs last during Apply -- so anything that clears it calls

@@ -72,14 +72,13 @@ class Param:
         return radians * DEG
 
 
-_PARAM_RE = re.compile(
-    r"""^(?P<sign>[+-])?
-         (?P<name>[A-Za-z]+)
-         (?P<under1>_*)
-         (?::(?P<suffix>[A-Za-z01]))?
-         (?P<under2>_*)$""",
-    re.VERBOSE,
-)
+# Parsed by hand rather than by regex. The obvious pattern needs two
+# underscore groups -- before and after the optional suffix -- and when the
+# suffix is absent they can split the same run many ways, which backtracks
+# quadratically: 60,000 underscores took 7 seconds. Scanning touches each
+# character once.
+MAX_PARAM_LENGTH = 64
+
 
 _SUFFIX_SCALE = {"r": "rad", "0": "zero_one", "1": "unit"}
 
@@ -88,18 +87,37 @@ def parse_param(token: str) -> Param:
     token = token.strip()
     if not token:
         raise ProfileError("empty parameter")
+    if len(token) > MAX_PARAM_LENGTH:
+        raise ProfileError(f"parameter is too long ({len(token)} characters)")
     if token == "0":
         return Param(kind="zero")
     if token.startswith("s:"):
         return Param(kind="string", text=token[2:])
 
-    m = _PARAM_RE.match(token)
-    if not m:
+    rest = token
+    negate = False
+    if rest[0] in "+-":
+        negate = rest[0] == "-"
+        rest = rest[1:]
+
+    cut = 0
+    while cut < len(rest) and rest[cut].isalpha():
+        cut += 1
+    name, rest = rest[:cut].lower(), rest[cut:]
+    if not name:
         raise ProfileError(f"cannot read parameter {token!r}")
-    name = m.group("name").lower()
-    negate = m.group("sign") == "-"
-    turns = len(m.group("under1")) + len(m.group("under2"))
-    suffix = m.group("suffix")
+
+    # Underscores and one optional :suffix, in either order, each character
+    # consumed exactly once.
+    turns, suffix = 0, None
+    while rest:
+        if rest[0] == "_":
+            turns += 1
+            rest = rest[1:]
+        elif rest[0] == ":" and suffix is None and len(rest) > 1:
+            suffix, rest = rest[1], rest[2:]
+        else:
+            raise ProfileError(f"cannot read parameter {token!r}")
 
     if name in QUAT_FIELDS:
         if suffix:

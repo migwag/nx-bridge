@@ -163,8 +163,9 @@ class ControlListener:
     path as a button press.
     """
 
-    def __init__(self, port, on_message):
+    def __init__(self, port, on_message, host="127.0.0.1"):
         self.port = int(port)
+        self.host = host
         self.ok = False
         self._server = None
         dispatcher = Dispatcher()
@@ -174,7 +175,11 @@ class ControlListener:
                                                     args[0] if args else None))
         dispatcher.set_default_handler(lambda _a, *_args: None)
         try:
-            self._server = ThreadingOSCUDPServer(("0.0.0.0", self.port), dispatcher)
+            # Loopback unless the profile asks otherwise. Anything that can
+            # reach this port can interrupt the stream or move the
+            # orientation reference, and there is nothing to authenticate
+            # with, so remote access is opt-in rather than the default.
+            self._server = ThreadingOSCUDPServer((self.host, self.port), dispatcher)
         except Exception:
             return
         self._thread = threading.Thread(target=self._server.serve_forever,
@@ -753,15 +758,16 @@ class App(ttk.Frame):
     def _apply_control_listener(self, extras):
         """Open, move or close the rx= control port as the file dictates."""
         values = (extras or {}).get("rx") or []
-        port = None
+        host, port = "127.0.0.1", None
         if values:
             try:
-                port = int(str(values[-1]).strip())
-            except ValueError:
+                host, port = NP.parse_destination(str(values[-1]))
+            except NP.ProfileError:
                 port = None
 
-        current = self.control.port if self.control and self.control.ok else None
-        if port == current:
+        current = ((self.control.host, self.control.port)
+                   if self.control and self.control.ok else None)
+        if port is not None and (host, port) == current:
             return
         if self.control:
             self.control.stop()
@@ -770,15 +776,16 @@ class App(ttk.Frame):
             self._control_note = ""
             self._control_error = ""
             return
-        listener = ControlListener(port, self._on_control_message)
+        listener = ControlListener(port, self._on_control_message, host)
         if listener.ok:
             self.control = listener
-            self._control_note = f"  |  /zero on {port}"
+            where = "" if host in ("127.0.0.1", "localhost") else f" {host}"
+            self._control_note = f"  |  /zero on{where} {port}"
             self._control_error = ""
         else:
             self.control = None
             self._control_note = ""
-            self._control_error = (f"rx={port}: cannot listen on that port — "
+            self._control_error = (f"rx: cannot listen on {host}:{port} — "
                                    "something else is already using it")
         self._show_control_error()
 
