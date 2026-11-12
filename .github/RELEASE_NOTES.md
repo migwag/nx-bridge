@@ -7,20 +7,22 @@ applications unchanged. Coming from Nxosc 1.0.5, note that yaw and pitch run
 the opposite way and quaternion components are named Supperware's way — the
 README explains how to get the old behaviour back.
 
-### What's new in 0.9.3
+### What's new in 0.9.4
 
-**Recenter now levels pitch and roll as well as yaw.** The tracker's own reset
-only touches yaw -- pitch and roll are measured against gravity, so there is
-nothing in the device to reset -- which left a tracker mounted at an angle
-reporting that angle forever. **Recenter in software**, on the Tracker tab,
-levels all three. It is on by default for new installations; if you have run
-an earlier version, tick it yourself, as your saved settings are left alone.
+**The inbound control port now listens on this machine only.** If you use
+`rx=` in `profiles.txt` to recenter from other software, it previously
+accepted commands from anywhere on the network, with nothing to authenticate
+against -- anyone able to reach the port could interrupt the stream or move
+your orientation reference. To accept commands from elsewhere, give an
+address as well as a port: `rx=0.0.0.0 9010` for any interface, or a specific
+address to limit it.
 
-Recentering also no longer drags the smoothing filter across the jump it
-deliberately creates.
+**A malformed profile can no longer hang the window.** A parameter with a very
+long run of underscores made the parser backtrack for seconds. It is now
+parsed in a single pass, with a length limit.
 
-**One name for it.** The button, the menu bar and the messages all say
-*Recenter* now, instead of mixing that with *Reset Center*.
+Both came from a security review. The README also now describes `rx=`, which
+it had never mentioned.
 
 ### Download
 
